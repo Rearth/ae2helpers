@@ -11,24 +11,37 @@ import appeng.api.stacks.AEKeyType;
 import appeng.util.prioritylist.IPartitionList;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class PatternProviderImportContext implements StackTransferContext {
     private final IStorageService internalStorage;
     private final IEnergySource energySource;
     private final IActionSource actionSource;
+    
+    // tracks remaining crafting results
+    private final Map<AEKey, Long> expectedResults;
+    // what was actually moved yet
+    private final Map<AEKey, Long> importedItems = new HashMap<>();
     
     private final int initialOperations;
     private int operationsRemaining;
     
     public PatternProviderImportContext(IStorageService internalStorage,
                                         IEnergySource energySource,
-                                        IActionSource actionSource) {
+                                        IActionSource actionSource,
+                                        Map<AEKey, Long> expectedResults) {
         this.internalStorage = internalStorage;
         this.energySource = energySource;
         this.actionSource = actionSource;
+        this.expectedResults = expectedResults;
         
         initialOperations = 64;
         operationsRemaining = 64;
-        
+    }
+    
+    public Map<AEKey, Long> getImportedItems() {
+        return importedItems;
     }
     
     @Override
@@ -68,30 +81,26 @@ public class PatternProviderImportContext implements StackTransferContext {
     
     @Override
     public boolean hasDoneWork() {
-        // Either we did work flag, or operations were consumed
         return initialOperations > operationsRemaining;
     }
     
-    // --- Filters (Not used for this logic, but required by interface) ---
-    
     @Override
     public boolean isKeyTypeEnabled(AEKeyType space) {
-        return true; // Allow all types (Items, Fluids, etc)
+        return true;
     }
     
     @Override
     public boolean isInFilter(AEKey key) {
-        return true; // We filter via 'expectations' in the insert method instead
+        return expectedResults.containsKey(key);
     }
     
     @Override
     public @Nullable IPartitionList getFilter() {
-        return null; // No GUI filter
+        return null;
     }
     
     @Override
     public void setInverted(boolean inverted) {
-        // No-op
     }
     
     @Override
@@ -101,10 +110,16 @@ public class PatternProviderImportContext implements StackTransferContext {
     
     @Override
     public boolean canInsert(AEItemKey what, long amount) {
-        return internalStorage.getInventory().insert(
+        long inserted = internalStorage.getInventory().insert(
           what,
           amount,
           Actionable.SIMULATE,
-          actionSource) > 0;
+          actionSource);
+        
+        if (inserted > 0) {
+            importedItems.merge(what, inserted, Long::sum);
+            return true;
+        }
+        return false;
     }
 }

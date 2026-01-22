@@ -2,13 +2,18 @@ package rearth.ae2helpers.util;
 
 import appeng.api.behaviors.StackTransferContext;
 import appeng.api.config.Actionable;
+import appeng.api.networking.IGridNode;
 import appeng.api.networking.energy.IEnergySource;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.networking.storage.IStorageService;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.AEKeyType;
+import appeng.api.stacks.KeyCounter;
+import appeng.api.storage.IStorageProvider;
+import appeng.api.storage.MEStorage;
 import appeng.util.prioritylist.IPartitionList;
+import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
@@ -46,7 +51,70 @@ public class PatternProviderImportContext implements StackTransferContext {
     
     @Override
     public IStorageService getInternalStorage() {
-        return internalStorage;
+        return new IStorageService() {
+            @Override
+            public MEStorage getInventory() {
+                
+                var realInv = internalStorage.getInventory();
+                
+                return new MEStorage() {
+                    @Override
+                    public Component getDescription() {
+                        return realInv.getDescription();
+                    }
+                    
+                    // this is why a custom class is needed. Tracks the inserted amounts to keep track of what has been moved.
+                    @Override
+                    public long insert(AEKey what, long amount, Actionable mode, IActionSource source) {
+                        var inserted = realInv.insert(what, amount, mode, source);
+                        if (mode == Actionable.MODULATE && inserted > 0) {
+                            importedItems.merge(what, inserted, Long::sum);
+                        }
+                        return inserted;
+                    }
+                    
+                    @Override
+                    public long extract(AEKey what, long amount, Actionable mode, IActionSource source) {
+                        return realInv.extract(what, amount, mode, source);
+                    }
+                    
+                    @Override
+                    public KeyCounter getAvailableStacks() {
+                        return realInv.getAvailableStacks();
+                    }
+                };
+            }
+            
+            @Override
+            public KeyCounter getCachedInventory() {
+                return internalStorage.getCachedInventory();
+            }
+            
+            @Override
+            public void addGlobalStorageProvider(IStorageProvider cc) {
+                internalStorage.addGlobalStorageProvider(cc);
+            }
+            
+            @Override
+            public void removeGlobalStorageProvider(IStorageProvider cc) {
+                internalStorage.removeGlobalStorageProvider(cc);
+            }
+            
+            @Override
+            public void refreshNodeStorageProvider(IGridNode node) {
+                internalStorage.refreshNodeStorageProvider(node);
+            }
+            
+            @Override
+            public void refreshGlobalStorageProvider(IStorageProvider provider) {
+                internalStorage.refreshGlobalStorageProvider(provider);
+            }
+            
+            @Override
+            public void invalidateCache() {
+                internalStorage.invalidateCache();
+            }
+        };
     }
     
     @Override
@@ -108,6 +176,7 @@ public class PatternProviderImportContext implements StackTransferContext {
         return false;
     }
     
+    // this is probably not really used
     @Override
     public boolean canInsert(AEItemKey what, long amount) {
         long inserted = internalStorage.getInventory().insert(
@@ -116,10 +185,6 @@ public class PatternProviderImportContext implements StackTransferContext {
           Actionable.SIMULATE,
           actionSource);
         
-        if (inserted > 0) {
-            importedItems.merge(what, inserted, Long::sum);
-            return true;
-        }
-        return false;
+        return inserted > 0;
     }
 }

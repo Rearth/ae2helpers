@@ -28,7 +28,6 @@ import rearth.ae2helpers.ae2helpers;
 import rearth.ae2helpers.util.PatternProviderImportContext;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
 @Mixin(PatternProviderLogic.class)
@@ -46,18 +45,16 @@ public abstract class PatternProviderImportMixin {
     // Crafting result logic
     @Unique private final Map<AEKey, Long> ae2helpers$expectedResults = new HashMap<>();
     
-    // Backoff logic
-    @Unique private int ae2helpers$ticksSinceLastImport = 0;
-    @Unique private int ae2helpers$currentPollDelay = 5; // Start fast
+    // Backoff logic: count invocations ("cycles") of doWork.
+    // If we return false, AE2 sleeps for ~5 ticks. So 1 cycle ~= 5 ticks.
+    @Unique private int ae2helpers$cyclesSinceLastCheck = 0;
+    @Unique private float ae2helpers$currentCycleDelay = 1f;
     
-    // Backoff config
-    @Unique private static final int AEHELPERS$MIN_DELAY = 5;
-    @Unique private static final int AEHELPERS$MAX_DELAY = 100; // Cap at 5 seconds
+    // Backoff config: Max 10 cycles * 5 ticks = 100 ticks (2.5 seconds)
+    @Unique private static final int AEHELPERS$MAX_CYCLE_DELAY = 10;
     
-    // Inject into pushPattern to record what we expect to receive
     @Inject(method = "pushPattern", at = @At("RETURN"))
     private void ae2helpers$onPushPattern(IPatternDetails patternDetails, KeyCounter[] inputHolder, CallbackInfoReturnable<Boolean> cir) {
-        // Only if the push was successful
         if (cir.getReturnValue()) {
             for (var output : patternDetails.getOutputs()) {
                 if (output != null) {
@@ -65,51 +62,83 @@ public abstract class PatternProviderImportMixin {
                 }
             }
             
-            // Reset backoff to aggressive polling because a new machine cycle started
-            ae2helpers$currentPollDelay = AEHELPERS$MIN_DELAY;
-            ae2helpers$ticksSinceLastImport = 0;
+            // Reset backoff to check immediately
+            ae2helpers$currentCycleDelay = 1;
+            ae2helpers$cyclesSinceLastCheck = 0;
             this.saveChanges();
             
+            // Wake up the node to ensure doWork is called soon
             this.mainNode.ifPresent((grid, node) -> grid.getTickManager().alertDevice(node));
         }
+    }
+    
+    // Checks all expected results, and lowers/removes them if there's no craft pending that needs them (e.g. cancelled / missed)
+    @Unique
+    private void ae2helpers$syncWithCraftingService() {
+        var grid = this.mainNode.getGrid();
+        if (grid == null) return;
+        
+        var craftingService = grid.getCraftingService();
+        if (craftingService == null) return;
+        
+        var it = ae2helpers$expectedResults.entrySet().iterator();
+        var changed = false;
+        
+        while (it.hasNext()) {
+            var entry = it.next();
+            var totalRequested = craftingService.getRequestedAmount(entry.getKey());
+            
+            if (totalRequested <= 0) {
+                it.remove();
+                changed = true;
+                ae2helpers.LOGGER.info("Removed pending request");
+            } else if (entry.getValue() > totalRequested) {
+                entry.setValue(totalRequested);
+                changed = true;
+                ae2helpers.LOGGER.info("Lowered pending request to: " + totalRequested);
+            }
+        }
+        
+        if (changed) this.saveChanges();
     }
     
     @Inject(method = "doWork", at = @At("RETURN"), cancellable = true)
     private void ae2helpers$onDoWork(CallbackInfoReturnable<Boolean> cir) {
         if (!this.mainNode.isActive()) return;
         
-        // Only tick if we are actually waiting for something
+        // Stop if we aren't expecting anything
         if (ae2helpers$expectedResults.isEmpty()) return;
         
-        ae2helpers$ticksSinceLastImport++;
+        ae2helpers$cyclesSinceLastCheck++;
         
-        if (ae2helpers$ticksSinceLastImport >= ae2helpers$currentPollDelay) {
-            ae2helpers$ticksSinceLastImport = 0;
+        if (ae2helpers$cyclesSinceLastCheck >= ae2helpers$currentCycleDelay) {
+            ae2helpers$cyclesSinceLastCheck = 0;
             
-            boolean didWork = ae2helpers$doImportWork();
-            ae2helpers.LOGGER.info("Import Success: " + didWork);
+            var didWork = ae2helpers$doImportWork();
+            ae2helpers.LOGGER.info("Import Success: {}", didWork);
             
             if (didWork) {
-                // We found items! Keep polling fast to grab the rest.
-                ae2helpers$currentPollDelay = AEHELPERS$MIN_DELAY;
+                // We moved items! Force URGENT tick (return true) to move the rest immediately.
+                ae2helpers$currentCycleDelay = 1;
                 cir.setReturnValue(true);
             } else {
-                // No items found yet. Slow down checking to save Tick Time.
-                ae2helpers$currentPollDelay = Math.min(AEHELPERS$MAX_DELAY, (int)(ae2helpers$currentPollDelay * 1.5));
+                // Found nothing. Increase delay (Exponential Backoff).
+                // We do NOT return true here. We let AE2 sleep the node for ~5 ticks.
+                ae2helpers$currentCycleDelay = Math.min(AEHELPERS$MAX_CYCLE_DELAY, ae2helpers$currentCycleDelay * 1.2f);
             }
+            
+            // sync with crafting service after operations (this just needs to be done periodic, but we still want to try to import
+            // things once, even if the craft was cancelled
+            ae2helpers$syncWithCraftingService();
         }
     }
     
     @Inject(method = "hasWorkToDo", at = @At("RETURN"), cancellable = true)
     private void ae2helpers$hasWorkToDo(CallbackInfoReturnable<Boolean> cir) {
-        // Only keep the provider awake if we are explicitly waiting for results
-        if (!ae2helpers$expectedResults.isEmpty()) {
+        // If AE2 thinks it's done (false), but we have expectations, force true.
+        if (!cir.getReturnValue() && !ae2helpers$expectedResults.isEmpty()) {
             cir.setReturnValue(true);
         }
-        
-        cir.setReturnValue(true);
-        
-        // todo check if this conflicts with the original method?
     }
     
     @Inject(method = "clearContent", at = @At("HEAD"))
@@ -119,7 +148,6 @@ public abstract class PatternProviderImportMixin {
         this.ae2helpers$expectedResults.clear();
     }
     
-    // Save expected results so we don't lose them on restart
     @Inject(method = "writeToNBT", at = @At("TAIL"))
     private void ae2helpers$writeToNBT(CompoundTag tag, HolderLookup.Provider registries, CallbackInfo ci) {
         if (!ae2helpers$expectedResults.isEmpty()) {
@@ -152,7 +180,6 @@ public abstract class PatternProviderImportMixin {
         
         var side = targets.iterator().next();
         
-        // create import strategy (if new load or side config changed)
         if (this.ae2helpers$importStrategy == null || this.ae2helpers$currentSide != side) {
             var be = this.host.getBlockEntity();
             if (be == null || be.getLevel() == null) return false;
@@ -164,7 +191,7 @@ public abstract class PatternProviderImportMixin {
               level,
               pos.relative(side),
               side.getOpposite(),
-              (key) -> true // filters the type of imports, e.g. items or fluids. We import all.
+              (type) -> true // Allow all KeyTypes (Fluid/Item), filter in Context
             );
             this.ae2helpers$currentSide = side;
         }
@@ -178,7 +205,6 @@ public abstract class PatternProviderImportMixin {
         
         this.ae2helpers$importStrategy.transfer(context);
         
-        // update expectations map based on actual imports
         var importedMap = context.getImportedItems();
         if (!importedMap.isEmpty()) {
             var changed = false;
@@ -186,7 +212,7 @@ public abstract class PatternProviderImportMixin {
             
             while (it.hasNext()) {
                 var entry = it.next();
-                var key = entry.getKey();   // the imported resource kind
+                var key = entry.getKey(); // the imported resource kind
                 var expected = entry.getValue();
                 
                 var actuallyImported = importedMap.getOrDefault(key, 0L);

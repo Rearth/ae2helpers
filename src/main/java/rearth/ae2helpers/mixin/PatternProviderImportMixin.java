@@ -73,7 +73,7 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
     
     @Inject(method = "<init>(Lappeng/api/networking/IManagedGridNode;Lappeng/helpers/patternprovider/PatternProviderLogicHost;I)V",at = @At("TAIL"))
     private void initUpgrade(IManagedGridNode mainNode, PatternProviderLogicHost host, int patternInventorySize, CallbackInfo ci) {
-        this.ae2helpers$upgradeSlots = UpgradeInventories.forMachine(host.getTerminalIcon().getItem(), 1, this::saveChanges);
+        this.ae2helpers$upgradeSlots = UpgradeInventories.forMachine(ae2helpers.RESULT_IMPORT_CARD, 1, this::saveChanges);
     }
     
     @Inject(method = "pushPattern", at = @At("RETURN"))
@@ -140,7 +140,7 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
         
         ae2helpers$cyclesSinceLastCheck++;
         
-        if (ae2helpers$cyclesSinceLastCheck >= ae2helpers$currentCycleDelay) {
+        if (ae2helpers$cyclesSinceLastCheck >= (int) ae2helpers$currentCycleDelay) {
             ae2helpers$cyclesSinceLastCheck = 0;
             
             var didWork = ae2helpers$doImportWork();
@@ -150,10 +150,11 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
                 ae2helpers$currentCycleDelay = 1;
                 cir.setReturnValue(true);
             } else {
-                ae2helpers$currentCycleDelay = Math.min(AEHELPERS$MAX_CYCLE_DELAY, ae2helpers$currentCycleDelay * 1.2f);
+                ae2helpers$currentCycleDelay = Math.min(AEHELPERS$MAX_CYCLE_DELAY, ae2helpers$currentCycleDelay * 1.15f);
             }
             
-            ae2helpers$syncWithCraftingService();
+            if (!ae2helpers$expectedResults.isEmpty())
+                ae2helpers$syncWithCraftingService();
         }
     }
     
@@ -186,6 +187,13 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
     private boolean ae2helpers$doImportWork() {
         var targets = this.host.getTargets();
         if (targets.isEmpty()) return false;
+        
+        // only work on sided pattern providers
+        if (targets.size() != 1) {
+            this.ae2helpers$importStrategy = null;
+            this.ae2helpers$currentSide = null;
+            return false;
+        }
         
         var side = targets.iterator().next();
         

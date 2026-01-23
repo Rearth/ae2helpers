@@ -5,6 +5,8 @@ import appeng.api.upgrades.Upgrades;
 import appeng.core.definitions.AEBlocks;
 import appeng.core.definitions.AEParts;
 import appeng.items.materials.UpgradeCardItem;
+import appeng.menu.SlotSemantic;
+import appeng.menu.SlotSemantics;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
@@ -24,6 +26,8 @@ import org.slf4j.Logger;
 
 @Mod(ae2helpers.MODID)
 public class ae2helpers {
+    
+    public static final SlotSemantic IMPORT_UPGRADE = SlotSemantics.register("IMPORT_UPGRADE", false);
     
     public static final String MODID = "ae2helpers";
     
@@ -62,8 +66,8 @@ public class ae2helpers {
 
         Config.ITEM_STRINGS.get().forEach((item) -> LOGGER.info("ITEM >> {}", item));
         
-        Upgrades.add(RESULT_IMPORT_CARD.get(), AEBlocks.PATTERN_PROVIDER.asItem(), 1, "gui.ae2helpers.import_card");
-        Upgrades.add(RESULT_IMPORT_CARD.get(), AEParts.PATTERN_PROVIDER.asItem(), 1, "gui.ae2helpers.import_card");
+        // ideally we'd define the machine(s) as target here, but that then breaks with other mods that add upgrades to the machine
+        Upgrades.add(RESULT_IMPORT_CARD.get(), RESULT_IMPORT_CARD, 1, "gui.ae2helpers.import_card");
     }
     
     private void injectToAETab(BuildCreativeModeTabContentsEvent event) {

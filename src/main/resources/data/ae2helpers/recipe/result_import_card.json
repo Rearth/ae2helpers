@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "u": {
+      "item": "ae2:advanced_card"
+    },
+    "i": {
+      "item": "ae2:import_bus"
+    },
+    "e": {
+      "item": "minecraft:repeater"
+    }
+  },
+  "pattern": [
+    "uie"
+  ],
+  "result": {
+    "count": 1,
+    "id": "ae2helpers:result_import_card"
+  }
+}

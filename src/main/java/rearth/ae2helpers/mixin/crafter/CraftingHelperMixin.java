@@ -21,7 +21,7 @@ public class CraftingHelperMixin {
     
     @Inject(method = "performTransfer", at = @At("HEAD"))
     private static void onPerformTransfer(CraftingTermMenu menu, ResourceLocation recipeId, Recipe<?> recipe, boolean craftMissing, CallbackInfo ci) {
-        if (craftMissing) {
+        if (craftMissing && AutoCraftingWatcher.INSTANCE.isAutoInsertEnabled()) {
             var ingredients = CraftingRecipeUtil.ensure3by3CraftingMatrix(recipe);
             
             var slotToIngredientMap = new HashMap<Integer, Ingredient>();

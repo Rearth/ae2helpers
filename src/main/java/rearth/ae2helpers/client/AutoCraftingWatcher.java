@@ -12,6 +12,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.neoforged.neoforge.network.PacketDistributor;
+import rearth.ae2helpers.Config;
 import rearth.ae2helpers.ae2helpers;
 import rearth.ae2helpers.network.FillCraftingSlotPacket;
 
@@ -199,5 +200,14 @@ public class AutoCraftingWatcher {
         }
         
         guiGraphics.pose().popPose();
+    }
+    
+    public boolean isAutoInsertEnabled() {
+        return Config.ENABLE_AUTO_IMPORT.getAsBoolean();
+    }
+    
+    public void toggleAutoInsert() {
+        Config.ENABLE_AUTO_IMPORT.set(!isAutoInsertEnabled());
+        Config.ENABLE_AUTO_IMPORT.save();
     }
 }

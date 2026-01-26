@@ -8,6 +8,12 @@
   "ae2helpers.configuration.logDirtBlock": "Log Dirt Block",
   "ae2helpers.configuration.magicNumberIntroduction": "Magic Number Text",
   "ae2helpers.configuration.magicNumber": "Magic Number",
+  "ae2helpers.configuration.enableAutoImport": "Enable Crafting Grid Auto-Import",
+
+  "ae2helpers.crafthelper.title": "Auto-Import Pending Crafts",
+  "ae2helpers.crafthelper.enabled": "Enabled",
+  "ae2helpers.crafthelper.disabled": "Disabled",
+  "ae2helpers.crafthelper.tooltip": "[AE2Helpers] Auto moves items that are auto-crafted via the recipe viewer to the crafting grid",
 
   "ae2helpers.importcard.pattern": "ME Pattern Provider (Sided Only)",
   "ae2helpers.importcard.screen.title": "Import Card Configuration",

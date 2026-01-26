@@ -2,13 +2,13 @@ package rearth.ae2helpers;
 
 import appeng.api.ids.AECreativeTabIds;
 import appeng.api.upgrades.Upgrades;
-import appeng.core.definitions.AEBlocks;
-import appeng.core.definitions.AEParts;
 import appeng.items.materials.UpgradeCardItem;
 import appeng.menu.SlotSemantic;
 import appeng.menu.SlotSemantics;
 import com.mojang.logging.LogUtils;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.bus.api.IEventBus;
@@ -21,11 +21,14 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
-import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.slf4j.Logger;
 import rearth.ae2helpers.network.FillCraftingSlotPacket;
+import rearth.ae2helpers.network.UpdateImportCardPacket;
+import rearth.ae2helpers.util.ImportCardConfig;
+import rearth.ae2helpers.util.ImportCardItem;
 
 @Mod(ae2helpers.MODID)
 public class ae2helpers {
@@ -38,14 +41,26 @@ public class ae2helpers {
     
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
     
-    public static final DeferredItem<Item> RESULT_IMPORT_CARD = ITEMS.registerItem("result_import_card", UpgradeCardItem::new, new Item.Properties());
-
+    public static final DeferredRegister<DataComponentType<?>> COMPONENTS = DeferredRegister.create(Registries.DATA_COMPONENT_TYPE, ae2helpers.MODID);
+    
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<ImportCardConfig>> IMPORT_CARD_CONFIG =
+      COMPONENTS.register("import_card_config", () -> DataComponentType.<ImportCardConfig>builder()
+                                                        .persistent(ImportCardConfig.CODEC)
+                                                        .networkSynchronized(ImportCardConfig.STREAM_CODEC)
+                                                        .cacheEncoding()
+                                                        .build());
+    
+    public static final DeferredItem<Item> RESULT_IMPORT_CARD =
+      ITEMS.registerItem("result_import_card", ImportCardItem::new, new Item.Properties());
+    
+    
     public ae2helpers(IEventBus modEventBus, ModContainer modContainer) {
         
         modEventBus.addListener(this::commonSetup);
-
+        
+        COMPONENTS.register(modEventBus);
         ITEMS.register(modEventBus);
-
+        
         // Register ourselves for server and other game events we are interested in.
         // Note that this is necessary if and only if we want *this* class (ae2helpers) to respond directly to events.
         // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
@@ -57,17 +72,17 @@ public class ae2helpers {
         // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
-
+    
     private void commonSetup(FMLCommonSetupEvent event) {
         // Some common setup code
         LOGGER.info("HELLO FROM COMMON SETUP");
-
+        
         if (Config.LOG_DIRT_BLOCK.getAsBoolean()) {
             LOGGER.info("DIRT BLOCK >> {}", BuiltInRegistries.BLOCK.getKey(Blocks.DIRT));
         }
-
+        
         LOGGER.info("{}{}", Config.MAGIC_NUMBER_INTRODUCTION.get(), Config.MAGIC_NUMBER.getAsInt());
-
+        
         Config.ITEM_STRINGS.get().forEach((item) -> LOGGER.info("ITEM >> {}", item));
         
         // ideally we'd define the machine(s) as target here, but that then breaks with other mods that add upgrades to the machine
@@ -88,8 +103,14 @@ public class ae2helpers {
           FillCraftingSlotPacket.STREAM_CODEC,
           FillCraftingSlotPacket::handle
         );
+        
+        registrar.playToServer(
+          UpdateImportCardPacket.TYPE,
+          UpdateImportCardPacket.STREAM_CODEC,
+          UpdateImportCardPacket::handle
+        );
     }
-
+    
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {

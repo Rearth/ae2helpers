@@ -1,0 +1,67 @@
+package rearth.ae2helpers.util;
+
+import appeng.items.materials.UpgradeCardItem;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.level.Level;
+import org.jetbrains.annotations.NotNull;
+import rearth.ae2helpers.ae2helpers;
+import rearth.ae2helpers.client.ImportCardScreen;
+
+import java.util.List;
+
+public class ImportCardItem extends UpgradeCardItem {
+    
+    public ImportCardItem(Properties properties) {
+        super(properties);
+    }
+    
+    @Override
+    public @NotNull InteractionResultHolder<ItemStack> use(Level level, Player player, @NotNull InteractionHand usedHand) {
+        var stack = player.getItemInHand(usedHand);
+        
+        if (level.isClientSide) {
+            if (!stack.has(ae2helpers.IMPORT_CARD_CONFIG)) {
+                stack.set(ae2helpers.IMPORT_CARD_CONFIG, ImportCardConfig.DEFAULT);
+            }
+            
+            Minecraft.getInstance().setScreen(new ImportCardScreen(stack));
+        }
+        
+        return InteractionResultHolder.success(stack);
+    }
+    
+    @Override
+    public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
+        super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+        
+        var config = stack.getOrDefault(ae2helpers.IMPORT_CARD_CONFIG.get(), ImportCardConfig.DEFAULT);
+        
+        tooltipComponents.add(Component.literal("Mode: ").withStyle(ChatFormatting.GRAY)
+                                .append(config.resultsOnly()
+                                          ? Component.literal("Crafting Results Only").withStyle(ChatFormatting.GOLD)
+                                          : Component.literal("Everything").withStyle(ChatFormatting.RED)));
+        
+        tooltipComponents.add(Component.literal("CPU Sync: ").withStyle(ChatFormatting.GRAY)
+                                .append(config.syncToGrid()
+                                          ? Component.literal("Enabled").withStyle(ChatFormatting.GREEN)
+                                          : Component.literal("Disabled").withStyle(ChatFormatting.RED)));
+        
+        var dir = config.overriddenDirection();
+        var sideText = (dir == null)
+                         ? "Auto (Facing Machine)"
+                         : dir.getName().substring(0, 1).toUpperCase() + dir.getName().substring(1); // Capitalize first letter
+        
+        tooltipComponents.add(Component.literal("Side: ").withStyle(ChatFormatting.GRAY)
+                                .append(Component.literal(sideText).withStyle(ChatFormatting.AQUA)));
+        
+        // small hint
+        tooltipComponents.add(Component.literal("Right-click to configure").withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+    }
+}

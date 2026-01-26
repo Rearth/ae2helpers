@@ -16,7 +16,6 @@ import rearth.ae2helpers.ae2helpers;
 import rearth.ae2helpers.network.FillCraftingSlotPacket;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,6 +27,7 @@ public class AutoCraftingWatcher {
     private final Map<Integer, Ingredient> pendingSlots = new HashMap<>();
     
     private boolean active = false;
+    private boolean screenOpened = false;
     private int startDelay = 0;
     private int craftingSlotsOffset = 0;
     
@@ -44,13 +44,20 @@ public class AutoCraftingWatcher {
         if (!this.pendingSlots.isEmpty()) {
             startDelay = 15;
             active = true;
+            screenOpened = false;
         }
+    }
+    
+    public void onScreenRemoved() {
+        if (screenOpened)
+            clear();
     }
     
     public void clear() {
         this.pendingSlots.clear();
         this.active = false;
         this.startDelay = 0;
+        this.screenOpened = false;
         ae2helpers.LOGGER.info("Cleared screen");
     }
     
@@ -71,6 +78,8 @@ public class AutoCraftingWatcher {
             return; // Wait for AE2 to finish its native moves
         }
         
+        this.screenOpened = true;
+        
         var repo = menu.getClientRepo();
         if (repo == null) return;
         
@@ -81,7 +90,7 @@ public class AutoCraftingWatcher {
             int slotIndex = entry.getKey();
             Ingredient ingredient = entry.getValue();
             
-            ae2helpers.LOGGER.info("Trying to fill slot: " + slotIndex + " with: " + ingredient.getItems()[0]);
+            // ae2helpers.LOGGER.debug("Trying to fill slot: " + slotIndex + " with: " + ingredient.getItems()[0]);
             
             // if slot has been filled otherwise (e.g. by user)
             if (craftingSlots.get(slotIndex).hasItem()) {

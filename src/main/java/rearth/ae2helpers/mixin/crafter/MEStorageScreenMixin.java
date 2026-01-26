@@ -1,11 +1,9 @@
 package rearth.ae2helpers.mixin.crafter;
 
 import appeng.client.gui.me.common.MEStorageScreen;
-import appeng.menu.me.common.MEStorageMenu;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -13,19 +11,6 @@ import rearth.ae2helpers.client.AutoCraftingWatcher;
 
 @Mixin(MEStorageScreen.class)
 public class MEStorageScreenMixin {
-    
-//    @Inject(method = "init", at = @At("HEAD"))
-//    private void onInit(CallbackInfo ci) {
-//        var screen = (MEStorageScreen<?>) (Object) this;
-//
-//        if (screen.getMenu() instanceof MEStorageMenu menu) {
-//            if (!menu.isReturnedFromSubScreen()) {
-//                AutoCraftingWatcher.INSTANCE.clear();
-//            }
-//        } else {
-//            AutoCraftingWatcher.INSTANCE.clear();
-//        }
-//    }
     
     @Inject(method = "containerTick", at = @At("RETURN"))
     private void onContainerTick(CallbackInfo ci) {
@@ -36,7 +21,7 @@ public class MEStorageScreenMixin {
     @Inject(method = "removed", at = @At("HEAD"))
     private void onRemoved(CallbackInfo ci) {
         System.out.println("Screen removed");
-        // AutoCraftingWatcher.INSTANCE.clear();
+        AutoCraftingWatcher.INSTANCE.onScreenRemoved();
     }
     
     @Inject(method = "renderSlot", at = @At("HEAD"))

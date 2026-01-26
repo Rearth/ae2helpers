@@ -15,7 +15,7 @@
   "ae2helpers.importcard.resultsonly": "Import Crafting Results Only",
   "ae2helpers.importcard.resultsonly.tooltip": "If enabled, only imports items that are expected outputs of the current crafting pattern.\nIf disabled, imports everything from the target machine.",
   "ae2helpers.importcard.sync": "Sync with Crafting CPU",
-  "ae2helpers.importcard.sync.tooltip": "If enabled, constantly checks if the Crafting CPU still wants the items.\nStops importing if the job is cancelled or fulfilled by other means.",
+  "ae2helpers.importcard.sync.tooltip": "If enabled, constantly checks if the Crafting CPU still wants the items.\nStops importing if the job is cancelled or fulfilled by other means.\nOnly works if `Import Crafting Results Only` is enabled",
   "ae2helpers.importcard.direction": "Import Side",
   "ae2helpers.importcard.direction.tooltip": "The side of the adjacent machine to pull items from.\n'Auto' uses the side facing the Pattern Provider.",
   "ae2helpers.importcard.direction.auto": "Auto (Facing Machine)",

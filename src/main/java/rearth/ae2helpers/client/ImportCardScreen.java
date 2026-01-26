@@ -24,7 +24,7 @@ public class ImportCardScreen extends Screen {
     private ImportCardConfig currentConfig;
     
     public ImportCardScreen(ItemStack stack) {
-        super(Component.literal("Import Card Configuration"));
+        super(Component.translatable("ae2helpers.importcard.screen.title"));
         this.stack = stack;
         this.currentConfig = stack.getOrDefault(ae2helpers.IMPORT_CARD_CONFIG.get(), ImportCardConfig.DEFAULT);
     }
@@ -36,12 +36,9 @@ public class ImportCardScreen extends Screen {
         var centerX = this.width / 2;
         var startY = this.height / 2 - 40;
         
-        var resultsTooltip = Tooltip.create(Component.literal(
-          "If enabled, only imports items that are expected outputs of the current crafting pattern.\n" +
-            "If disabled, imports everything from the target machine."
-        ));
+        var resultsTooltip = Tooltip.create(Component.translatable("ae2helpers.importcard.resultsonly.tooltip"));
         
-        var resultsBox = Checkbox.builder(Component.literal("Import Crafting Results Only"), font)
+        var resultsBox = Checkbox.builder(Component.translatable("ae2helpers.importcard.resultsonly"), font)
                            .pos(centerX - 80, startY)
                            .selected(currentConfig.resultsOnly())
                            .tooltip(resultsTooltip)
@@ -49,12 +46,9 @@ public class ImportCardScreen extends Screen {
                            .build();
         this.addRenderableWidget(resultsBox);
         
-        var syncTooltip = Tooltip.create(Component.literal(
-          "If enabled, constantly checks if the Crafting CPU still wants the items.\n" +
-            "Stops importing if the job is cancelled or fulfilled by other means."
-        ));
+        var syncTooltip = Tooltip.create(Component.translatable("ae2helpers.importcard.sync.tooltip"));
         
-        var syncBox = Checkbox.builder(Component.literal("Sync with Crafting CPU"), font)
+        var syncBox = Checkbox.builder(Component.translatable("ae2helpers.importcard.sync"), font)
                         .pos(centerX - 80, startY + 25)
                         .selected(currentConfig.syncToGrid())
                         .tooltip(syncTooltip)
@@ -62,10 +56,7 @@ public class ImportCardScreen extends Screen {
                         .build();
         this.addRenderableWidget(syncBox);
         
-        var dirTooltip = Tooltip.create(Component.literal(
-          "The side of the adjacent machine to pull items from.\n" +
-            "'Auto' uses the side facing the Pattern Provider."
-        ));
+        var dirTooltip = Tooltip.create(Component.translatable("ae2helpers.importcard.direction.tooltip"));
         
         var options = new ArrayList<Optional<Direction>>();
         options.add(Optional.empty());
@@ -75,14 +66,14 @@ public class ImportCardScreen extends Screen {
                           .withValues(options)
                           .withTooltip(val -> dirTooltip)
                           .withInitialValue(Optional.ofNullable(currentConfig.overriddenDirection()))
-                          .create(centerX - 80, startY + 50, 200, 20, Component.literal("Import Side"),
+                          .create(centerX - 80, startY + 50, 200, 20, Component.translatable("ae2helpers.importcard.direction"),
                             (btn, val) -> updateConfig(currentConfig.resultsOnly(), currentConfig.syncToGrid(), val.orElse(null)));
         
         this.addRenderableWidget(dirButton);
     }
     
     private Component getDirectionName(Direction dir) {
-        if (dir == null) return Component.literal("Auto (Facing Machine)");
+        if (dir == null) return Component.translatable("ae2helpers.importcard.direction.auto");
         return Component.literal(dir.getName().substring(0, 1).toUpperCase() + dir.getName().substring(1));
     }
     

@@ -43,25 +43,24 @@ public class ImportCardItem extends UpgradeCardItem {
         
         var config = stack.getOrDefault(ae2helpers.IMPORT_CARD_CONFIG.get(), ImportCardConfig.DEFAULT);
         
-        tooltipComponents.add(Component.literal("Mode: ").withStyle(ChatFormatting.GRAY)
+        tooltipComponents.add(Component.translatable("ae2helpers.importcard.tooltip.mode").withStyle(ChatFormatting.GRAY)
                                 .append(config.resultsOnly()
-                                          ? Component.literal("Crafting Results Only").withStyle(ChatFormatting.GOLD)
-                                          : Component.literal("Everything").withStyle(ChatFormatting.RED)));
+                                          ? Component.translatable("ae2helpers.importcard.tooltip.crafting_results").withStyle(ChatFormatting.GOLD)
+                                          : Component.translatable("ae2helpers.importcard.tooltip.everything").withStyle(ChatFormatting.RED)));
         
-        tooltipComponents.add(Component.literal("CPU Sync: ").withStyle(ChatFormatting.GRAY)
+        tooltipComponents.add(Component.translatable("ae2helpers.importcard.tooltip.sync").withStyle(ChatFormatting.GRAY)
                                 .append(config.syncToGrid()
-                                          ? Component.literal("Enabled").withStyle(ChatFormatting.GREEN)
-                                          : Component.literal("Disabled").withStyle(ChatFormatting.RED)));
+                                          ? Component.translatable("ae2helpers.importcard.tooltip.enabled").withStyle(ChatFormatting.GREEN)
+                                          : Component.translatable("ae2helpers.importcard.tooltip.disabled").withStyle(ChatFormatting.RED)));
         
         var dir = config.overriddenDirection();
         var sideText = (dir == null)
-                         ? "Auto (Facing Machine)"
-                         : dir.getName().substring(0, 1).toUpperCase() + dir.getName().substring(1); // Capitalize first letter
+                         ? Component.translatable("ae2helpers.importcard.direction.auto")
+                         : Component.literal(dir.getName().substring(0, 1).toUpperCase() + dir.getName().substring(1));
         
-        tooltipComponents.add(Component.literal("Side: ").withStyle(ChatFormatting.GRAY)
-                                .append(Component.literal(sideText).withStyle(ChatFormatting.AQUA)));
+        tooltipComponents.add(Component.translatable("ae2helpers.importcard.tooltip.side").withStyle(ChatFormatting.GRAY)
+                                .append(sideText.withStyle(ChatFormatting.AQUA)));
         
-        // small hint
-        tooltipComponents.add(Component.literal("Right-click to configure").withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+        tooltipComponents.add(Component.translatable("ae2helpers.importcard.tooltip.hint").withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
     }
 }

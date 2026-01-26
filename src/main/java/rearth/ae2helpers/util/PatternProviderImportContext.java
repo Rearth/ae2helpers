@@ -29,17 +29,21 @@ public class PatternProviderImportContext implements StackTransferContext {
     // what was actually moved yet
     private final Map<AEKey, Long> importedItems = new HashMap<>();
     
+    private final boolean resultsOnly;
+    
     private final int initialOperations;
     private int operationsRemaining;
     
     public PatternProviderImportContext(IStorageService internalStorage,
                                         IEnergySource energySource,
                                         IActionSource actionSource,
-                                        Map<AEKey, Long> expectedResults) {
+                                        Map<AEKey, Long> expectedResults,
+                                        boolean resultsOnly) {
         this.internalStorage = internalStorage;
         this.energySource = energySource;
         this.actionSource = actionSource;
         this.expectedResults = expectedResults;
+        this.resultsOnly = resultsOnly;
         
         initialOperations = 64;
         operationsRemaining = 64;
@@ -159,7 +163,8 @@ public class PatternProviderImportContext implements StackTransferContext {
     
     @Override
     public boolean isInFilter(AEKey key) {
-        return expectedResults.containsKey(key);
+        // if not resultsOnly, always true (e.g. everything allowed)
+        return !resultsOnly || expectedResults.containsKey(key);
     }
     
     @Override

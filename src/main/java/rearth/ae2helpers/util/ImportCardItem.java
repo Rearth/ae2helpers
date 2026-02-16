@@ -3,7 +3,6 @@ package rearth.ae2helpers.util;
 import appeng.core.localization.ButtonToolTips;
 import appeng.items.materials.UpgradeCardItem;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
@@ -13,7 +12,7 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 import rearth.ae2helpers.ae2helpers;
-import rearth.ae2helpers.client.ImportCardScreen;
+import rearth.ae2helpers.client.ImportCardClientHelper;
 
 import java.util.List;
 
@@ -28,11 +27,7 @@ public class ImportCardItem extends UpgradeCardItem {
         var stack = player.getItemInHand(usedHand);
         
         if (level.isClientSide) {
-            if (!stack.has(ae2helpers.IMPORT_CARD_CONFIG)) {
-                stack.set(ae2helpers.IMPORT_CARD_CONFIG, ImportCardConfig.DEFAULT);
-            }
-            
-            Minecraft.getInstance().setScreen(new ImportCardScreen(stack));
+            ImportCardClientHelper.openScreen(stack);
         }
         
         return InteractionResultHolder.success(stack);

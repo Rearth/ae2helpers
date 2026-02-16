@@ -1,0 +1,4 @@
+- Allow card to be sneak-clicked into pattern providers
+- Add compatibility with me soul card mod
+- Add PT_BR localization (@PrincessStellar)
+- Fix class loading issues on dedicated servers

@@ -1,14 +1,22 @@
 package rearth.ae2helpers.util;
 
+import appeng.api.upgrades.IUpgradeInventory;
+import appeng.blockentity.crafting.PatternProviderBlockEntity;
+import appeng.blockentity.networking.CableBusBlockEntity;
 import appeng.core.localization.ButtonToolTips;
+import appeng.core.localization.PlayerMessages;
 import appeng.items.materials.UpgradeCardItem;
+import appeng.parts.crafting.PatternProviderPart;
+import appeng.util.InteractionUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 import rearth.ae2helpers.ae2helpers;
@@ -31,6 +39,61 @@ public class ImportCardItem extends UpgradeCardItem {
         }
         
         return InteractionResultHolder.success(stack);
+    }
+    
+    @Override
+    public @NotNull InteractionResult onItemUseFirst(ItemStack stack, UseOnContext context) {
+        // similar to super method but only targets the custom mixin inventory
+        var player = context.getPlayer();
+        var hand = context.getHand();
+        
+        if (player != null && InteractionUtil.isInAlternateUseMode(player)) {
+            var te = context.getLevel().getBlockEntity(context.getClickedPos());
+            IUpgradeInventory upgrades = null;
+            
+            // ((PatternProviderPart) ((CableBusBlockEntity) te).selectPartWorld(context.getClickLocation()).part).getLogic() instanceof IPatternProviderUpgradeHost
+            
+            if (te instanceof CableBusBlockEntity be && be.selectPartWorld(context.getClickLocation()).part instanceof PatternProviderPart part && part.getLogic() instanceof IPatternProviderUpgradeHost upgradeHost) {
+                upgrades = upgradeHost.ae2helpers$getUpgradeInventory();
+            } else if (te instanceof PatternProviderBlockEntity provider && provider.getLogic() instanceof IPatternProviderUpgradeHost upgradeHost) {
+                upgrades = upgradeHost.ae2helpers$getUpgradeInventory();
+            }
+            
+            if (upgrades != null) {
+                var heldStack = player.getItemInHand(hand);
+                
+                boolean isFull = true;
+                for (int i = 0; i < upgrades.size(); i++) {
+                    if (upgrades.getStackInSlot(i).isEmpty()) {
+                        isFull = false;
+                        break;
+                    }
+                }
+                if (isFull) {
+                    player.displayClientMessage(PlayerMessages.MaxUpgradesInstalled.text(), true);
+                    return InteractionResult.FAIL;
+                }
+                
+                var maxInstalled = upgrades.getMaxInstalled(heldStack.getItem());
+                var installed = upgrades.getInstalledUpgrades(heldStack.getItem());
+                if (maxInstalled <= 0) {
+                    player.displayClientMessage(PlayerMessages.UnsupportedUpgrade.text(), true);
+                    return InteractionResult.FAIL;
+                } else if (installed >= maxInstalled) {
+                    player.displayClientMessage(PlayerMessages.MaxUpgradesOfTypeInstalled.text(), true);
+                    return InteractionResult.FAIL;
+                }
+                
+                if (player.getCommandSenderWorld().isClientSide()) {
+                    return InteractionResult.SUCCESS;
+                }
+                
+                player.setItemInHand(hand, upgrades.addItems(heldStack));
+                return InteractionResult.sidedSuccess(player.getCommandSenderWorld().isClientSide());
+            }
+        }
+        
+        return super.onItemUseFirst(stack, context);
     }
     
     @Override

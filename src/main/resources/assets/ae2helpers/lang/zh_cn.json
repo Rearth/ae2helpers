@@ -15,7 +15,7 @@
   "ae2helpers.crafthelper.disabled": "已禁用",
   "ae2helpers.crafthelper.tooltip": "[AE2辅助] 自动将 物品管理器 中自动合成的物品移至合成网格",
 
-  "ae2helpers.importcard.pattern": "样板供应器（仅限带有方向性）",
+  "ae2helpers.importcard.pattern": "样板供应器（仅限带有方向性的）",
   "ae2helpers.importcard.screen.title": "返回卡配置",
   "ae2helpers.importcard.resultsonly": "仅返回成品",
   "ae2helpers.importcard.resultsonly.tooltip": "启用后，仅返回当前配方指定的预期产物。\n禁用后，将返回目标机器中的所有产物。",

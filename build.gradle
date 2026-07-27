@@ -28,6 +28,15 @@ repositories {
         url = "https://maven.terraformersmc.com/"
     }
 
+    // for the optional pattern provider addons (compile-time compat only)
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+
 }
 
 base {
@@ -148,6 +157,13 @@ dependencies {
 
     compileOnly "dev.emi:emi-neoforge:${emi_version}:api"
     runtimeOnly "dev.emi:emi-neoforge:${emi_version}"
+
+    // Optional pattern provider addons, compile-time only (soft dependencies) for the compat mixins.
+    compileOnly "maven.modrinth:advancedae:1.6.11-1.21.1"
+    compileOnly "maven.modrinth:extended-ae:1.21-2.2.29-neoforge"
+    compileOnly "maven.modrinth:expanded-ae:2.1.1"
+    // version id instead of number: "1.1.5" is ambiguous (also a 1.20.1-forge build); this id is 1.21.1-neoforge
+    compileOnly "maven.modrinth:applied-create:HElFht3c"
 
 }
 

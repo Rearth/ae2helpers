@@ -10,7 +10,7 @@ public interface AEBaseScreenAccessor {
     
     @SuppressWarnings("UnusedReturnValue")
     @Invoker("addToLeftToolbar")
-    <B extends Button> B ae2extras$invokeAddToLeftToolbar(B button);
+    <B extends Button> B ae2helpers$invokeAddToLeftToolbar(B button);
     
     
 }

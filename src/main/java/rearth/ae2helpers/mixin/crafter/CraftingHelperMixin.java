@@ -18,7 +18,7 @@ import java.util.HashMap;
 public class CraftingHelperMixin {
     
     @Inject(method = "performTransfer", at = @At("HEAD"))
-    private static void ae2extras$onPerformTransfer(CraftingTermMenu menu, ResourceLocation recipeId, Recipe<?> recipe, boolean craftMissing, CallbackInfo ci) {
+    private static void ae2helpers$onPerformTransfer(CraftingTermMenu menu, ResourceLocation recipeId, Recipe<?> recipe, boolean craftMissing, CallbackInfo ci) {
         if (craftMissing && AutoCraftingWatcher.INSTANCE.isAutoInsertEnabled()) {
             var ingredients = CraftingRecipeUtil.ensure3by3CraftingMatrix(recipe);
             

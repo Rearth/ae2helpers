@@ -47,6 +47,16 @@ Small mod that enables automatically putting requested crafting items in the gri
 [[mixins]]
 config="${mod_id}.mixins.json"
 
+# Advanced AE compat mixins. Skipped automatically when Advanced AE is not installed
+# (their target classes are never loaded), so no hard dependency is created.
+[[mixins]]
+config="${mod_id}.aae.mixins.json"
+
+# Redstone card mixins (core + optional-mod block variants). Optional-mod mixins are skipped
+# automatically when the respective mod is absent.
+[[mixins]]
+config="${mod_id}.redstone.mixins.json"
+
 # The [[accessTransformers]] block allows you to declare where your AT file is.
 # If this block is omitted, a fallback attempt will be made to load an AT from META-INF/accesstransformer.cfg
 #[[accessTransformers]]

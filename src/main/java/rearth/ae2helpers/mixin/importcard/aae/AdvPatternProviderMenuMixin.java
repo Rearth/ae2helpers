@@ -1,13 +1,13 @@
-package rearth.ae2helpers.mixin.importcard;
+package rearth.ae2helpers.mixin.importcard.aae;
 
 import appeng.api.upgrades.IUpgradeInventory;
-import appeng.helpers.patternprovider.PatternProviderLogic;
-import appeng.helpers.patternprovider.PatternProviderLogicHost;
 import appeng.menu.AEBaseMenu;
-import appeng.menu.implementations.PatternProviderMenu;
 import appeng.menu.slot.RestrictedInputSlot;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MenuType;
+import net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogic;
+import net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogicHost;
+import net.pedroksl.advanced_ae.gui.advpatternprovider.AdvPatternProviderMenu;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -18,31 +18,26 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rearth.ae2helpers.ae2helpers;
 import rearth.ae2helpers.util.IPatternProviderUpgradeHost;
 
-@Mixin(PatternProviderMenu.class)
-public abstract class PatternProviderMenuMixin extends AEBaseMenu {
-    
-    @Shadow
-    @Final
-    protected PatternProviderLogic logic;
-    
-    public PatternProviderMenuMixin(MenuType<?> menuType, int id, Inventory playerInventory, Object host) {
+// SmallAdvPatternProviderMenu extends this menu, so injecting the shared constructor covers both.
+@Mixin(AdvPatternProviderMenu.class)
+public abstract class AdvPatternProviderMenuMixin extends AEBaseMenu {
+
+    @Shadow @Final protected AdvPatternProviderLogic logic;
+
+    public AdvPatternProviderMenuMixin(MenuType<?> menuType, int id, Inventory playerInventory, Object host) {
         super(menuType, id, playerInventory, host);
     }
-    
+
     @Inject(
-      method = "<init>(Lnet/minecraft/world/inventory/MenuType;ILnet/minecraft/world/entity/player/Inventory;Lappeng/helpers/patternprovider/PatternProviderLogicHost;)V",
+      method = "<init>(Lnet/minecraft/world/inventory/MenuType;ILnet/minecraft/world/entity/player/Inventory;Lnet/pedroksl/advanced_ae/common/logic/AdvPatternProviderLogicHost;)V",
       at = @At("TAIL")
     )
-    private void ae2helpers$initUpgrades(MenuType<?> menuType, int id, Inventory playerInventory, PatternProviderLogicHost host, CallbackInfo ci) {
+    private void ae2helpers$initUpgrades(MenuType<?> menuType, int id, Inventory playerInventory, AdvPatternProviderLogicHost host, CallbackInfo ci) {
         if (this.logic instanceof IPatternProviderUpgradeHost upgradeHost) {
-            
             ae2helpers$createUpgradeSlots(upgradeHost.ae2helpers$getUpgradeInventory());
-            
-            // could be this but that breaks with extendedae
-            // this.setupUpgrades(upgradeHost.ae2helpers$getUpgradeInventory());
         }
     }
-    
+
     @Unique
     protected final void ae2helpers$createUpgradeSlots(IUpgradeInventory upgrades) {
         for (int i = 0; i < upgrades.size(); i++) {

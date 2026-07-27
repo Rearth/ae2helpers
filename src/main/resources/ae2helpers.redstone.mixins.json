@@ -1,0 +1,21 @@
+{
+  "required": true,
+  "package": "rearth.ae2helpers.mixin.redstone",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ImportBusLinkMixin",
+    "PatternProviderRedstoneBlockMixin",
+    "PatternProviderRedstonePartMixin",
+    "aae.AdvPatternProviderRedstoneBlockMixin",
+    "aae.AdvPatternProviderRedstonePartMixin",
+    "extendedae.ExPatternProviderRedstoneBlockMixin",
+    "expandedae.ExpPatternProviderRedstoneBlockMixin",
+    "appliedcreate.AppliedCreatePatternProviderRedstoneBlockMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

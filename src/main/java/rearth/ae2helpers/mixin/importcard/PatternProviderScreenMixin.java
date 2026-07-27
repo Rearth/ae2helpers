@@ -32,7 +32,7 @@ public abstract class PatternProviderScreenMixin extends AEBaseScreen<PatternPro
     }
     
     @Inject(method = "<init>", at = @At("TAIL"))
-    private void ae2extras$initUpgradePanel(PatternProviderMenu menu, Inventory playerInventory, Component title, ScreenStyle style, CallbackInfo ci) {
+    private void ae2helpers$initUpgradePanel(PatternProviderMenu menu, Inventory playerInventory, Component title, ScreenStyle style, CallbackInfo ci) {
         
         // could be this but that breaks with extendedae
 //        this.widgets.add("upgrades", new UpgradesPanel(

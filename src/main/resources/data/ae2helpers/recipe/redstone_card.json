@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "u": {
+      "item": "ae2:advanced_card"
+    },
+    "r": {
+      "item": "ae2:redstone_card"
+    },
+    "e": {
+      "item": "minecraft:repeater"
+    }
+  },
+  "pattern": [
+    "ure"
+  ],
+  "result": {
+    "count": 1,
+    "id": "ae2helpers:redstone_card"
+  }
+}

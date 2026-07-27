@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "rearth.ae2helpers.mixin.importcard.aae",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AdvPatternProviderImportMixin",
+    "AdvPatternProviderMenuMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "client": [
+    "AdvPatternProviderScreenMixin",
+    "SmallAdvPatternProviderScreenMixin"
+  ]
+}

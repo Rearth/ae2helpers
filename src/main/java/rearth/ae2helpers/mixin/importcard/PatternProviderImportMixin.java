@@ -6,7 +6,6 @@ import appeng.api.networking.IManagedGridNode;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
-import appeng.api.stacks.KeyCounter;
 import appeng.api.upgrades.IUpgradeInventory;
 import appeng.api.upgrades.UpgradeInventories;
 import appeng.helpers.patternprovider.PatternProviderLogic;
@@ -71,6 +70,11 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
     @Unique private long ae2helpers$lastActiveTick = Long.MIN_VALUE;
     @Unique private static final long AEHELPERS$REDSTONE_LINGER = 60;
 
+    // outputs this provider is producing for the current craft; lets the redstone signal bridge the gaps
+    // between pattern pushes (expectedResults briefly empties while AE2 hasn't re-pushed the next pattern)
+    // as long as AE2 still requests the output, so Pulse mode doesn't fire a spurious finish pulse mid-craft.
+    @Unique private final java.util.Set<AEKey> ae2helpers$activeCraftKeys = new java.util.HashSet<>();
+
     @Unique private int ae2helpers$cyclesSinceLastCheck = 0;
     @Unique private float ae2helpers$currentCycleDelay = 1f;
     @Unique private static final int AEHELPERS$MAX_CYCLE_DELAY = 10;
@@ -81,7 +85,7 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
     @Unique private static final long AEHELPERS$IMPORT_IDLE_TIMEOUT = 200;
 
     @Inject(method = "<init>(Lappeng/api/networking/IManagedGridNode;Lappeng/helpers/patternprovider/PatternProviderLogicHost;I)V",at = @At("TAIL"))
-    private void ae2extras$initUpgrade(IManagedGridNode mainNode, PatternProviderLogicHost host, int patternInventorySize, CallbackInfo ci) {
+    private void ae2helpers$initUpgrade(IManagedGridNode mainNode, PatternProviderLogicHost host, int patternInventorySize, CallbackInfo ci) {
         this.ae2helpers$upgradeSlots = UpgradeInventories.forMachine(ae2helpers.RESULT_IMPORT_CARD, 2, this::ae2helpers$onUpgradesChanged);
     }
 
@@ -95,30 +99,32 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
         this.mainNode.ifPresent((grid, node) -> grid.getTickManager().alertDevice(node));
     }
     
-    @Inject(method = "pushPattern", at = @At("RETURN"))
-    private void ae2helpers$onPushPattern(IPatternDetails patternDetails, KeyCounter[] inputHolder, CallbackInfoReturnable<Boolean> cir) {
-        if (cir.getReturnValue()) {
-            // track pending outputs for either card: the import card pulls them, the redstone card only needs
-            // to know something is still being produced (decremented by imports or the provider's own returns).
-            if (!ae2helpers$hasImportCard() && !ae2helpers$hasRedstoneCard()) return;
-            
-            for (var output : patternDetails.getOutputs()) {
-                if (output != null) {
-                    ae2helpers$expectedResults.merge(output.what(), output.amount(), Long::sum);
-                }
+    // AE2 calls onPushPatternSuccess at the end of every successful pushPattern. Hooking here rather than
+    // pushPattern's RETURN also covers AppliedCreate's Mechanical Crafting provider, which bypasses
+    // super.pushPattern entirely and invokes onPushPatternSuccess via reflection - so its crafts register too.
+    @Inject(method = "onPushPatternSuccess", at = @At("HEAD"))
+    private void ae2helpers$onPushPattern(IPatternDetails patternDetails, CallbackInfo ci) {
+        // track pending outputs for either card: the import card pulls them, the redstone card only needs
+        // to know something is still being produced (decremented by imports or the provider's own returns).
+        if (!ae2helpers$hasImportCard() && !ae2helpers$hasRedstoneCard()) return;
+
+        for (var output : patternDetails.getOutputs()) {
+            if (output != null) {
+                ae2helpers$expectedResults.merge(output.what(), output.amount(), Long::sum);
+                ae2helpers$activeCraftKeys.add(output.what());
             }
-            
-            ae2helpers$currentCycleDelay = 1;
-            ae2helpers$cyclesSinceLastCheck = 0;
-
-            // treat a fresh push as recent activity so the idle timeout doesn't drop the new expectation
-            var be = this.host.getBlockEntity();
-            if (be != null && be.getLevel() != null) ae2helpers$lastImportTick = be.getLevel().getGameTime();
-
-            this.saveChanges();
-
-            this.mainNode.ifPresent((grid, node) -> grid.getTickManager().alertDevice(node));
         }
+
+        ae2helpers$currentCycleDelay = 1;
+        ae2helpers$cyclesSinceLastCheck = 0;
+
+        // treat a fresh push as recent activity so the idle timeout doesn't drop the new expectation
+        var be = this.host.getBlockEntity();
+        if (be != null && be.getLevel() != null) ae2helpers$lastImportTick = be.getLevel().getGameTime();
+
+        this.saveChanges();
+
+        this.mainNode.ifPresent((grid, node) -> grid.getTickManager().alertDevice(node));
     }
 
     // case 2: the machine pushes its output back through the provider's own return path -> count it here
@@ -151,6 +157,8 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
 
         var be = this.host.getBlockEntity();
         var gameTime = (be != null && be.getLevel() != null) ? be.getLevel().getGameTime() : 0L;
+        // lazily anchor the idle timer (never set / not restored from NBT) to avoid a MIN_VALUE overflow
+        if (ae2helpers$lastImportTick == Long.MIN_VALUE) ae2helpers$lastImportTick = gameTime;
         var idleTicks = gameTime - ae2helpers$lastImportTick;
 
         // forget confirmations for keys we no longer expect
@@ -387,15 +395,32 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
 
     @Unique
     private boolean ae2helpers$isCraftingActive() {
-        // driven purely by what THIS provider pushed and is still waiting to come back (populated in
-        // pushPattern, reduced by imports / provider returns / a linked import bus, expired by the idle timeout).
-        return !ae2helpers$expectedResults.isEmpty();
+        // driven by what THIS provider pushed and is still waiting to come back (populated in pushPattern,
+        // reduced by imports / provider returns / a linked import bus, expired by the idle timeout). While that
+        // map briefly empties between pattern pushes, bridge the gap as long as AE2 still requests our output -
+        // otherwise Pulse mode would see a false craft-end edge and fire a spurious finish pulse mid-craft.
+        if (!ae2helpers$expectedResults.isEmpty()) return true;
+        return !ae2helpers$activeCraftKeys.isEmpty() && ae2helpers$stillCraftingViaGrid();
+    }
+
+    @Unique
+    private boolean ae2helpers$stillCraftingViaGrid() {
+        var grid = this.mainNode.getGrid();
+        if (grid == null) return false;
+        var craftingService = grid.getCraftingService();
+        if (craftingService == null) return false;
+        for (var key : ae2helpers$activeCraftKeys) {
+            if (craftingService.isRequesting(key)) return true;
+        }
+        return false;
     }
 
     @Unique
     private boolean ae2helpers$hasRedstoneWork() {
         if (!ae2helpers$hasRedstoneCard()) return false;
-        if (!ae2helpers$expectedResults.isEmpty()) return true;
+        // stay awake while crafting - incl. the gaps between pattern pushes bridged via the crafting service,
+        // so updateRedstone keeps refreshing lastActiveTick and Pulse doesn't fire a false mid-craft finish
+        if (ae2helpers$isCraftingActive()) return true;
         var be = this.host.getBlockEntity();
         var now = (be != null && be.getLevel() != null) ? be.getLevel().getGameTime() : 0L;
         if (ae2helpers$pulseEndTick > now) return true;
@@ -428,7 +453,13 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
             ae2helpers$wasCraftingActive = false;
         } else {
             var active = ae2helpers$isCraftingActive();
-            if (active) ae2helpers$lastActiveTick = level.getGameTime();
+            if (active) {
+                ae2helpers$lastActiveTick = level.getGameTime();
+            } else {
+                // craft truly finished (nothing pending and AE2 no longer requests our output) -> reset so the
+                // next craft starts a clean active window (and one finish pulse fires after the linger)
+                ae2helpers$activeCraftKeys.clear();
+            }
             // keep the state steady for a short linger after crafting stops, so back-to-back crafts don't
             // rapidly toggle the signal (every toggle is a neighbor update -> avoids TPS churn with many machines)
             var effectiveActive = active;
@@ -464,11 +495,12 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
         this.ae2helpers$lastUsedConfigDirection = null;
         this.ae2helpers$expectedResults.clear();
         this.ae2helpers$confirmedCrafts.clear();
+        this.ae2helpers$activeCraftKeys.clear();
         this.ae2helpers$upgradeSlots.clear();
     }
     
     @Inject(method = "addDrops", at = @At("TAIL"))
-    private void ae2extras$dropUpgrade(List<ItemStack> drops, CallbackInfo ci) {
+    private void ae2helpers$dropUpgrade(List<ItemStack> drops, CallbackInfo ci) {
         for (var slot : this.ae2helpers$upgradeSlots) {
             if (!slot.isEmpty()) {
                 drops.add(slot);
@@ -500,6 +532,10 @@ public abstract class PatternProviderImportMixin implements IPatternProviderUpgr
                 }
             }
         }
+        // restored expectations were confirmed crafts when saved; re-seed so the idle timeout can retire
+        // them if their craft job no longer exists after the reload (else the signal could stick forever)
+        ae2helpers$confirmedCrafts.clear();
+        ae2helpers$confirmedCrafts.addAll(ae2helpers$expectedResults.keySet());
         ae2helpers$upgradeSlots.readFromNBT(tag, "ae2helperupgrades", registries);
     }
     

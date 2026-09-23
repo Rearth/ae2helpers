@@ -1,0 +1,35 @@
+{
+  "item.ae2helpers.result_import_card": "Карта импорта результатов",
+
+  "ae2helpers.configuration.title": "Настройки ae2helpers",
+  "ae2helpers.configuration.section.ae2helpers.common.toml": "Настройки ae2helpers",
+  "ae2helpers.configuration.section.ae2helpers.common.toml.title": "Настройки ae2helpers",
+  "ae2helpers.configuration.items": "Список предметов",
+  "ae2helpers.configuration.logDirtBlock": "Логировать блок земли",
+  "ae2helpers.configuration.magicNumberIntroduction": "Текст магического числа",
+  "ae2helpers.configuration.magicNumber": "Магическое число",
+  "ae2helpers.configuration.enableAutoImport": "Включить автоимпорт в сетку создания",
+
+  "ae2helpers.crafthelper.title": "Автоимпорт запланированных задач создания",
+  "ae2helpers.crafthelper.enabled": "Включено",
+  "ae2helpers.crafthelper.disabled": "Выключено",
+  "ae2helpers.crafthelper.tooltip": "[AE2Helpers] Автоматически переносит предметы, заказанные через меню рецептов, прямо в сетку терминала создания",
+
+  "ae2helpers.importcard.pattern": "МЭ поставщик шаблонов (только со стороны)",
+  "ae2helpers.importcard.screen.title": "Настройка карты импорта",
+  "ae2helpers.importcard.resultsonly": "Импортировать только результаты создания",
+  "ae2helpers.importcard.resultsonly.tooltip": "Если включено, импортирует только те предметы, которые являются ожидаемым результатом текущего шаблона создания.\nЕсли выключено, забирает абсолютно всё из подключённого механизма.",
+  "ae2helpers.importcard.sync": "Синхронизация с МЭ процессором создания",
+  "ae2helpers.importcard.sync.tooltip": "Если включено, постоянно проверяет, требуются ли ещё эти предметы МЭ процессору.\nОстанавливает импорт, если задача автокрафта отменена или выполнена другими средствами.\nРаботает только при включённом режиме «Импортировать только результаты создания».",
+  "ae2helpers.importcard.direction": "Сторона импорта",
+  "ae2helpers.importcard.direction.tooltip": "Сторона смежного механизма, с которой будут забираться предметы.\nРежим «Авто» использует сторону, обращённую к поставщику шаблонов.",
+  "ae2helpers.importcard.direction.auto": "Авто (направление к машине)",
+  "ae2helpers.importcard.tooltip.mode": "Режим: ",
+  "ae2helpers.importcard.tooltip.crafting_results": "Только результаты создания",
+  "ae2helpers.importcard.tooltip.everything": "Всё",
+  "ae2helpers.importcard.tooltip.sync": "Синхр. с процессором: ",
+  "ae2helpers.importcard.tooltip.enabled": "Включено",
+  "ae2helpers.importcard.tooltip.disabled": "Выключено",
+  "ae2helpers.importcard.tooltip.side": "Сторона: ",
+  "ae2helpers.importcard.tooltip.hint": "Нажмите ПКМ для настройки"
+}

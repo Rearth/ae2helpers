@@ -11,7 +11,14 @@ When you attempt to move a recipe (via JEI/EMI/REI) into the Crafting Terminal b
 
 1.  **Request the Autocraft:** Hold `CTRL` + Click the recipe transfer button (standard AE2 behavior) to request the missing items.
 2.  **Wait & Watch:** Instead of leaving the slots empty, **Ghost Items** will appear in the grid with a small loading spinner.
-3.  **Auto-Fill:** The moment your Crafting CPUs finish the job and the items enter the network, they are **automatically inserted** into the correct slots on the grid.
+3.  **Switch Screens Freely:** Pending slots are remembered for each terminal and dimension until you disconnect. Return to the same terminal to resume auto-filling.
+4.  **Auto-Fill:** The moment your Crafting CPUs finish the job and the items enter the network, they are **automatically inserted** into the correct slots on the grid.
+
+Hover a ghost to see its ingredient name and pending status. Left- or right-click it to remove that ghost and stop waiting for that slot. The underlying AE2 crafting job continues.
+
+A ghost disappears as soon as its slot receives a real item. If the ingredient's CPU job finishes or is cancelled while the item is no longer available (for example, another craft consumed it), the unfilled ghost expires after a 10-second grace period. Requests never observed running receive a 30-second startup grace period. The server checks matching CPU output types; it cannot tell which consumer took a finished item. An unavailable network pauses this cleanup.
+
+Both crafting-grid clear buttons also remove pending ghosts for the current terminal. Merely closing the terminal keeps them pending.
 
 ## Controls
 This feature is enabled by default. If you wish to disable it:

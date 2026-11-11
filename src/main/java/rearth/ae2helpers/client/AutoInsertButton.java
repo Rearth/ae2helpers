@@ -1,6 +1,6 @@
 package rearth.ae2helpers.client;
 
-import appeng.client.gui.Icon;
+import appeng.util.Icon;
 import appeng.client.gui.widgets.IconButton;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;

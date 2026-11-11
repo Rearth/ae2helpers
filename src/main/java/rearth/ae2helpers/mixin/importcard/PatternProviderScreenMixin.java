@@ -12,7 +12,7 @@ import appeng.menu.implementations.PatternProviderMenu;
 import appeng.parts.crafting.PatternProviderPart;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
-import net.neoforged.fml.ModList;
+import appeng.menu.SlotSemantics;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -34,30 +34,20 @@ public abstract class PatternProviderScreenMixin extends AEBaseScreen<PatternPro
     @Inject(method = "<init>", at = @At("TAIL"))
     private void ae2extras$initUpgradePanel(PatternProviderMenu menu, Inventory playerInventory, Component title, ScreenStyle style, CallbackInfo ci) {
         
-        // could be this but that breaks with extendedae
-//        this.widgets.add("upgrades", new UpgradesPanel(
-//          menu.getSlots(SlotSemantics.UPGRADE),
-//          this::ae2helpers$getCompatibleUpgrades
-//        ));
-        
         var existingStyle = style.getWidget("upgrades");
+        var upgradeStyle = new WidgetStyle();
+        upgradeStyle.setLeft(existingStyle.getLeft());
+        upgradeStyle.setRight(existingStyle.getRight());
+        upgradeStyle.setTop(existingStyle.getTop());
+        upgradeStyle.setHideEdge(existingStyle.isHideEdge());
         
-        // inject new style, similar to existing upgrades. Moved lower if appflux is there to avoid overlaps
-        if (style instanceof ScreenStyleAccessor accessor) {
-            
-            WidgetStyle upgradeStyle = existingStyle;
-            if (ModList.get().isLoaded("appflux") || ModList.get().isLoaded("mesoulcard")) {
-                upgradeStyle = new WidgetStyle();
-                upgradeStyle.setLeft(existingStyle.getLeft());
-                upgradeStyle.setRight(existingStyle.getRight());
-                upgradeStyle.setTop(existingStyle.getTop() + existingStyle.getHeight() + 32);
-                upgradeStyle.setHeight(existingStyle.getHeight());
-                upgradeStyle.setWidth(existingStyle.getWidth());
-                upgradeStyle.setHideEdge(existingStyle.isHideEdge());
-            }
-            
-            accessor.ae2helpers$getWidgets().put("importupgrades", upgradeStyle);
+        // AE2 upgrade panels size themselves; the style's height is normally zero.
+        // Leave room for other mods' upgrades without relying on specific mod IDs.
+        int otherUpgrades = menu.getSlots(SlotSemantics.UPGRADE).size();
+        if (otherUpgrades > 0) {
+            upgradeStyle.setTop(existingStyle.getTop() + 10 + Math.min(8, otherUpgrades) * 18 + 4);
         }
+        ((ScreenStyleAccessor) style).ae2helpers$getWidgets().put("importupgrades", upgradeStyle);
         
         this.widgets.add("importupgrades", new UpgradesPanel(
           menu.getSlots(ae2helpers.IMPORT_UPGRADE),

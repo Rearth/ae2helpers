@@ -2,15 +2,9 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "key": {
-    "u": {
-      "item": "ae2:advanced_card"
-    },
-    "i": {
-      "item": "ae2:import_bus"
-    },
-    "e": {
-      "item": "minecraft:repeater"
-    }
+    "u": "ae2:advanced_card",
+    "i": "ae2:import_bus",
+    "e": "minecraft:repeater"
   },
   "pattern": [
     "uie"

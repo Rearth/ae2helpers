@@ -1,12 +1,11 @@
 {
   "required": true,
   "package": "rearth.ae2helpers.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_25",
   "mixins": [
-    "crafter.CraftingHelperMixin",
     "importcard.PatternProviderImportMixin",
     "importcard.PatternProviderMenuMixin",
-    "importcard.ScreenStyleAccessor"
+    "crafter.MenuTypeBuilderMixin"
   ],
   "injectors": {
     "defaultRequire": 1
@@ -17,6 +16,10 @@
   "client": [
     "crafter.AEBaseScreenAccessor",
     "crafter.MEStorageScreenMixin",
-    "importcard.PatternProviderScreenMixin"
+    "importcard.PatternProviderScreenMixin",
+    "crafter.CraftingHelperMixin",
+    "importcard.ScreenStyleAccessor",
+    "crafter.GhostSlotInteractionMixin",
+    "crafter.CraftingTermScreenMixin"
   ]
 }

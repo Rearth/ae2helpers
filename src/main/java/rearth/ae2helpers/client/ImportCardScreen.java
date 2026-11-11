@@ -1,14 +1,18 @@
 package rearth.ae2helpers.client;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Checkbox;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.tooltip.MenuTooltipPositioner;
+import net.minecraft.client.gui.screens.inventory.tooltip.BelowOrAboveWidgetTooltipPositioner;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraft.world.InteractionHand;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import org.jetbrains.annotations.NotNull;
 import rearth.ae2helpers.ae2helpers;
 import rearth.ae2helpers.network.UpdateImportCardPacket;
@@ -20,12 +24,14 @@ import java.util.Optional;
 
 public class ImportCardScreen extends Screen {
     
-    private final ItemStack stack;
+    private final InteractionHand hand;
     private ImportCardConfig currentConfig;
+    private Checkbox resultsBox;
+    private CycleButton<Optional<Direction>> directionButton;
     
-    public ImportCardScreen(ItemStack stack) {
+    public ImportCardScreen(ItemStack stack, InteractionHand hand) {
         super(Component.translatable("ae2helpers.importcard.screen.title"));
-        this.stack = stack;
+        this.hand = hand;
         this.currentConfig = stack.getOrDefault(ae2helpers.IMPORT_CARD_CONFIG.get(), ImportCardConfig.DEFAULT);
     }
     
@@ -33,28 +39,19 @@ public class ImportCardScreen extends Screen {
     protected void init() {
         super.init();
         
-        var centerX = this.width / 2;
-        var startY = this.height / 2 - 40;
+        var left = this.width / 2 - 110;
+        var startY = this.height / 2 - 25;
         
         var resultsTooltip = Tooltip.create(Component.translatable("ae2helpers.importcard.resultsonly.tooltip"));
         
-        var resultsBox = Checkbox.builder(Component.translatable("ae2helpers.importcard.resultsonly"), font)
-                           .pos(centerX - 80, startY)
+        resultsBox = Checkbox.builder(Component.translatable("ae2helpers.importcard.resultsonly"), font)
+                           .pos(left, startY)
                            .selected(currentConfig.resultsOnly())
-                           .tooltip(resultsTooltip)
-                           .onValueChange((box, val) -> updateConfig(val, currentConfig.syncToGrid(), currentConfig.overriddenDirection()))
+                           .onValueChange((box, val) -> updateConfig(val, currentConfig.overriddenDirection()))
                            .build();
+        // Checkbox.Builder only applies its tooltip when the label overflows in 26.1.2.
+        resultsBox.setTooltip(resultsTooltip);
         this.addRenderableWidget(resultsBox);
-        
-        var syncTooltip = Tooltip.create(Component.translatable("ae2helpers.importcard.sync.tooltip"));
-        
-        var syncBox = Checkbox.builder(Component.translatable("ae2helpers.importcard.sync"), font)
-                        .pos(centerX - 80, startY + 25)
-                        .selected(currentConfig.syncToGrid())
-                        .tooltip(syncTooltip)
-                        .onValueChange((box, val) -> updateConfig(currentConfig.resultsOnly(), val, currentConfig.overriddenDirection()))
-                        .build();
-        this.addRenderableWidget(syncBox);
         
         var dirTooltip = Tooltip.create(Component.translatable("ae2helpers.importcard.direction.tooltip"));
         
@@ -62,14 +59,13 @@ public class ImportCardScreen extends Screen {
         options.add(Optional.empty());
         options.addAll(Arrays.stream(Direction.values()).map(Optional::of).toList());
         
-        var dirButton = CycleButton.<Optional<Direction>>builder(opt -> getDirectionName(opt.orElse(null)))
+        directionButton = CycleButton.<Optional<Direction>>builder(opt -> getDirectionName(opt.orElse(null)), Optional.ofNullable(currentConfig.overriddenDirection()))
                           .withValues(options)
                           .withTooltip(val -> dirTooltip)
-                          .withInitialValue(Optional.ofNullable(currentConfig.overriddenDirection()))
-                          .create(centerX - 80, startY + 50, 200, 20, Component.translatable("ae2helpers.importcard.direction"),
-                            (btn, val) -> updateConfig(currentConfig.resultsOnly(), currentConfig.syncToGrid(), val.orElse(null)));
+                          .create(left, startY + 30, 220, 20, Component.translatable("ae2helpers.importcard.direction"),
+                            (btn, val) -> updateConfig(currentConfig.resultsOnly(), val.orElse(null)));
         
-        this.addRenderableWidget(dirButton);
+        this.addRenderableWidget(directionButton);
     }
     
     private Component getDirectionName(Direction dir) {
@@ -77,16 +73,27 @@ public class ImportCardScreen extends Screen {
         return Component.literal(dir.getName().substring(0, 1).toUpperCase() + dir.getName().substring(1));
     }
     
-    private void updateConfig(boolean resultsOnly, boolean sync, Direction dir) {
-        this.currentConfig = new ImportCardConfig(resultsOnly, sync, dir);
-        PacketDistributor.sendToServer(new UpdateImportCardPacket(currentConfig));
+    private void updateConfig(boolean resultsOnly, Direction dir) {
+        this.currentConfig = new ImportCardConfig(resultsOnly, dir);
+        ClientPacketDistributor.sendToServer(new UpdateImportCardPacket(hand, currentConfig));
     }
     
     @Override
-    public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
-        guiGraphics.drawCenteredString(font, this.title, this.width / 2, 20, 0xFFFFFF);
+    public void extractRenderState(@NotNull GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+        super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
+        guiGraphics.centeredText(font, this.title, this.width / 2, 20, 0xFFFFFFFF);
+        extractWideTooltip(guiGraphics, resultsBox, "ae2helpers.importcard.resultsonly.tooltip", mouseX, mouseY);
+        extractWideTooltip(guiGraphics, directionButton, "ae2helpers.importcard.direction.tooltip", mouseX, mouseY);
+    }
+
+    private void extractWideTooltip(GuiGraphicsExtractor graphics, AbstractWidget widget, String translationKey,
+                                    int mouseX, int mouseY) {
+        if (!widget.isHovered() && !(widget.isFocused() && minecraft.getLastInputType().isKeyboard())) return;
+        // Keep the widget tooltip for narration, but replace vanilla's fixed 170-pixel text wrapping.
+        var lines = font.split(Component.translatable(translationKey), Math.min(300, width - 24));
+        var positioner = widget.isHovered() ? new MenuTooltipPositioner(widget.getRectangle())
+                : new BelowOrAboveWidgetTooltipPositioner(widget.getRectangle());
+        graphics.setTooltipForNextFrame(font, lines, positioner, mouseX, mouseY, true);
     }
     
     @Override

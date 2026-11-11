@@ -3,7 +3,7 @@ package rearth.ae2helpers.mixin.crafter;
 import appeng.client.gui.me.common.MEStorageScreen;
 import appeng.menu.me.common.MEStorageMenu;
 import appeng.menu.me.items.CraftingTermMenu;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,16 +23,18 @@ public abstract class MEStorageScreenMixin<C extends MEStorageMenu> {
         AutoCraftingWatcher.INSTANCE.onTick(screen);
     }
     
-    @Inject(method = "removed", at = @At("HEAD"))
-    private void ae2extras$onRemoved(CallbackInfo ci) {
-        AutoCraftingWatcher.INSTANCE.onScreenRemoved();
+    @Inject(method = "extractSlot", at = @At("HEAD"))
+    private void ae2extras$onRenderSlot(GuiGraphicsExtractor guiGraphics, Slot slot, int mouseX, int mouseY, CallbackInfo ci) {
+        AutoCraftingWatcher.INSTANCE.renderGhosts((MEStorageScreen<?>) (Object) this, guiGraphics, slot);
     }
     
-    @Inject(method = "renderSlot", at = @At("HEAD"))
-    private void ae2extras$onRenderSlot(GuiGraphics guiGraphics, Slot slot, CallbackInfo ci) {
-        AutoCraftingWatcher.INSTANCE.renderGhosts(guiGraphics, slot);
+    @Inject(method = "extractTooltip", at = @At("HEAD"), cancellable = true)
+    private void ae2helpers$ghostTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, CallbackInfo ci) {
+        if (AutoCraftingWatcher.INSTANCE.renderTooltip((MEStorageScreen<?>) (Object) this, guiGraphics, mouseX, mouseY)) {
+            ci.cancel();
+        }
     }
-    
+
     @Inject(method = "<init>(Lappeng/menu/me/common/MEStorageMenu;Lnet/minecraft/world/entity/player/Inventory;Lnet/minecraft/network/chat/Component;Lappeng/client/gui/style/ScreenStyle;)V", at = @At("TAIL"))
     private void ae2extras$onInit(CallbackInfo ci) {
         

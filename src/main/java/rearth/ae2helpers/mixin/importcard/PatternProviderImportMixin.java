@@ -4,21 +4,17 @@ import appeng.api.behaviors.StackImportStrategy;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IManagedGridNode;
 import appeng.api.networking.security.IActionSource;
-import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
-import appeng.api.stacks.KeyCounter;
 import appeng.api.upgrades.IUpgradeInventory;
 import appeng.api.upgrades.UpgradeInventories;
 import appeng.helpers.patternprovider.PatternProviderLogic;
 import appeng.helpers.patternprovider.PatternProviderLogicHost;
 import appeng.parts.automation.StackWorldBehaviors;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -28,278 +24,180 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rearth.ae2helpers.ae2helpers;
+import rearth.ae2helpers.util.CraftingResultTracker;
 import rearth.ae2helpers.util.IPatternProviderUpgradeHost;
 import rearth.ae2helpers.util.ImportCardConfig;
 import rearth.ae2helpers.util.PatternProviderImportContext;
 
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
 @Mixin(PatternProviderLogic.class)
 public abstract class PatternProviderImportMixin implements IPatternProviderUpgradeHost {
-    
     @Shadow @Final private IManagedGridNode mainNode;
     @Shadow @Final private IActionSource actionSource;
     @Shadow @Final private PatternProviderLogicHost host;
     @Shadow public abstract void saveChanges();
-    
-    @Unique private StackImportStrategy ae2helpers$importStrategy;
-    @Unique private Direction ae2helpers$currentSide;
-    
-    // used to detect config changes
+    @Shadow private void onStackReturnedToNetwork(GenericStack stack) {
+        throw new AssertionError();
+    }
+
+    @Unique private final Map<Direction, StackImportStrategy> ae2helpers$importStrategies = new EnumMap<>(Direction.class);
+    @Unique private final CraftingResultTracker ae2helpers$results = new CraftingResultTracker();
     @Unique private Direction ae2helpers$lastUsedConfigDirection;
-    
     @Unique private IUpgradeInventory ae2helpers$upgradeSlots = UpgradeInventories.empty();
-    @Unique private final Map<AEKey, Long> ae2helpers$expectedResults = new HashMap<>();
-    
-    @Unique private int ae2helpers$cyclesSinceLastCheck = 0;
-    @Unique private float ae2helpers$currentCycleDelay = 1f;
+    @Unique private int ae2helpers$nextImportSide;
+    @Unique private int ae2helpers$cyclesSinceLastCheck;
+    @Unique private float ae2helpers$currentCycleDelay = 1;
     @Unique private static final int AEHELPERS$MAX_CYCLE_DELAY = 10;
-    
-    @Inject(method = "<init>(Lappeng/api/networking/IManagedGridNode;Lappeng/helpers/patternprovider/PatternProviderLogicHost;I)V",at = @At("TAIL"))
-    private void ae2extras$initUpgrade(IManagedGridNode mainNode, PatternProviderLogicHost host, int patternInventorySize, CallbackInfo ci) {
-        this.ae2helpers$upgradeSlots = UpgradeInventories.forMachine(ae2helpers.RESULT_IMPORT_CARD, 1, this::saveChanges);
+
+    @Inject(method = "<init>(Lappeng/api/networking/IManagedGridNode;Lappeng/helpers/patternprovider/PatternProviderLogicHost;I)V", at = @At("TAIL"))
+    private void ae2helpers$initUpgrade(IManagedGridNode mainNode, PatternProviderLogicHost host, int patternInventorySize, CallbackInfo ci) {
+        ae2helpers$upgradeSlots = UpgradeInventories.forMachine(ae2helpers.RESULT_IMPORT_CARD, 1, this::ae2helpers$onUpgradeChanged);
     }
-    
-    @Inject(method = "pushPattern", at = @At("RETURN"))
-    private void ae2helpers$onPushPattern(IPatternDetails patternDetails, KeyCounter[] inputHolder, CallbackInfoReturnable<Boolean> cir) {
-        if (cir.getReturnValue()) {
-            if (!ae2helpers$hasImportCard()) return;
-            
-            for (var output : patternDetails.getOutputs()) {
-                if (output != null) {
-                    ae2helpers$expectedResults.merge(output.what(), output.amount(), Long::sum);
-                }
-            }
-            
-            ae2helpers$currentCycleDelay = 1;
-            ae2helpers$cyclesSinceLastCheck = 0;
-            this.saveChanges();
-            
-            this.mainNode.ifPresent((grid, node) -> grid.getTickManager().alertDevice(node));
-        }
-    }
-    
+
     @Unique
-    private void ae2helpers$syncWithCraftingService() {
-        var grid = this.mainNode.getGrid();
-        if (grid == null) return;
-        
-        var craftingService = grid.getCraftingService();
-        if (craftingService == null) return;
-        
-        var it = ae2helpers$expectedResults.entrySet().iterator();
-        var changed = false;
-        
-        while (it.hasNext()) {
-            var entry = it.next();
-            var totalRequested = craftingService.getRequestedAmount(entry.getKey());
-            
-            if (totalRequested <= 0) {
-                it.remove();
-                changed = true;
-            } else if (entry.getValue() > totalRequested) {
-                entry.setValue(totalRequested);
-                changed = true;
-            }
-        }
-        
-        if (changed) this.saveChanges();
+    private void ae2helpers$onUpgradeChanged() {
+        if (!ae2helpers$hasImportCard()) ae2helpers$results.clear();
+        ae2helpers$importStrategies.clear();
+        ae2helpers$wake();
+        saveChanges();
     }
-    
+
+    @Unique
+    private void ae2helpers$wake() {
+        ae2helpers$currentCycleDelay = 1;
+        ae2helpers$cyclesSinceLastCheck = 0;
+        mainNode.ifPresent((grid, node) -> grid.getTickManager().alertDevice(node));
+    }
+
+    // Use AE2's success hook so each accepted push is counted once, including subclass paths using this hook.
+    @Inject(method = "onPushPatternSuccess", at = @At("HEAD"))
+    private void ae2helpers$onPushPattern(IPatternDetails pattern, CallbackInfo ci) {
+        if (!ae2helpers$hasImportCard()) return;
+        var level = host.getBlockEntity().getLevel();
+        if (level == null) return;
+        for (var output : pattern.getOutputs()) {
+            if (output != null) ae2helpers$results.expect(output.what(), output.amount(), level.getGameTime());
+        }
+        ae2helpers$wake();
+        saveChanges();
+    }
+
+    @Inject(method = "onStackReturnedToNetwork", at = @At("HEAD"))
+    private void ae2helpers$onStackReturned(GenericStack stack, CallbackInfo ci) {
+        var level = host.getBlockEntity().getLevel();
+        if (level != null && ae2helpers$results.imported(stack.what(), stack.amount(), level.getGameTime())) saveChanges();
+    }
+
     @Inject(method = "doWork", at = @At("RETURN"), cancellable = true)
     private void ae2helpers$onDoWork(CallbackInfoReturnable<Boolean> cir) {
-        if (!this.mainNode.isActive()) return;
-        
-        if (!ae2helpers$hasImportCard()) {
-            if (!ae2helpers$expectedResults.isEmpty()) {
-                ae2helpers$expectedResults.clear();
-                this.saveChanges();
-            }
-            return;
-        }
-        
+        if (!mainNode.isActive() || !ae2helpers$hasImportCard()) return;
         var config = ae2helpers$getConfig();
-        
-        // If we are in "Result Only" mode AND have no expectations, we sleep.
-        // If "Result Only" is FALSE (Import Everything), we must run even if map is empty.
-        if (config.resultsOnly() && ae2helpers$expectedResults.isEmpty()) return;
-        
-        ae2helpers$cyclesSinceLastCheck++;
-        
-        if (ae2helpers$cyclesSinceLastCheck >= (int) ae2helpers$currentCycleDelay) {
-            ae2helpers$cyclesSinceLastCheck = 0;
-            
-            var didWork = ae2helpers$doImportWork(config);
-            
-            if (didWork) {
-                ae2helpers$currentCycleDelay = 1;
-                cir.setReturnValue(true);
-            } else {
-                ae2helpers$currentCycleDelay = Math.min(AEHELPERS$MAX_CYCLE_DELAY, ae2helpers$currentCycleDelay * 1.15f);
-            }
-            
-            // Sync only if there is data AND config allows it
-            if (!ae2helpers$expectedResults.isEmpty() && config.syncToGrid()) {
-                ae2helpers$syncWithCraftingService();
-            }
+        if (config.resultsOnly() && ae2helpers$results.isEmpty()) return;
+        if (++ae2helpers$cyclesSinceLastCheck < (int) ae2helpers$currentCycleDelay) return;
+        ae2helpers$cyclesSinceLastCheck = 0;
+
+        if (ae2helpers$doImportWork(config)) {
+            ae2helpers$currentCycleDelay = 1;
+            cir.setReturnValue(true);
+        } else {
+            ae2helpers$currentCycleDelay = Math.min(AEHELPERS$MAX_CYCLE_DELAY, ae2helpers$currentCycleDelay * 1.15f);
+        }
+
+        var level = host.getBlockEntity().getLevel();
+        var grid = mainNode.getGrid();
+        if (level != null && grid != null && ae2helpers$results.cleanup(level.getGameTime(),
+                key -> grid.getCraftingService().getRequestedAmount(key) > 0)) {
+            saveChanges();
         }
     }
-    
+
     @Inject(method = "hasWorkToDo", at = @At("RETURN"), cancellable = true)
     private void ae2helpers$hasWorkToDo(CallbackInfoReturnable<Boolean> cir) {
-        // If AE2 thinks it's asleep, check if we need to wake up
-        if (!cir.getReturnValue() && ae2helpers$hasImportCard()) {
-            var config = ae2helpers$getConfig();
-            // Wake up if: "Import All" mode is ON, OR we have specific results waiting
-            if (!config.resultsOnly() || !ae2helpers$expectedResults.isEmpty()) {
-                cir.setReturnValue(true);
-            }
+        if (!cir.getReturnValue() && ae2helpers$hasImportCard()
+                && (!ae2helpers$getConfig().resultsOnly() || !ae2helpers$results.isEmpty())) {
+            cir.setReturnValue(true);
         }
     }
-    
+
     @Unique
     private boolean ae2helpers$doImportWork(ImportCardConfig config) {
-        var targets = this.host.getTargets();
-        if (targets.isEmpty()) return false;
-        if (targets.size() != 1) {
-            this.ae2helpers$importStrategy = null;
-            this.ae2helpers$currentSide = null;
-            return false;
+        var targets = host.getTargets();
+        var grid = mainNode.getGrid();
+        var be = host.getBlockEntity();
+        if (targets.isEmpty() || grid == null || !(be.getLevel() instanceof ServerLevel level)) return false;
+
+        if (ae2helpers$lastUsedConfigDirection != config.overriddenDirection()) {
+            ae2helpers$importStrategies.clear();
+            ae2helpers$lastUsedConfigDirection = config.overriddenDirection();
         }
-        
-        var side = targets.iterator().next();
-        
-        var targetSide = config.overriddenDirection();
-        if (targetSide == null) targetSide = side.getOpposite();
-        
-        // Check if strategy needs recreation:
-        // 1. Provider rotated (currentSide != side)
-        // 2. Strategy is null
-        // 3. Config changed (lastUsed != targetSide)
-        if (this.ae2helpers$importStrategy == null
-              || this.ae2helpers$currentSide != side
-              || this.ae2helpers$lastUsedConfigDirection != targetSide) {
-            
-            var be = this.host.getBlockEntity();
-            if (be == null || be.getLevel() == null) return false;
-            
-            var level = (ServerLevel) be.getLevel();
-            var pos = be.getBlockPos();
-            
-            this.ae2helpers$importStrategy = StackWorldBehaviors.createImportFacade(
-              level,
-              pos.relative(side),
-              targetSide,
-              (type) -> true
-            );
-            this.ae2helpers$currentSide = side;
-            this.ae2helpers$lastUsedConfigDirection = targetSide;
+        ae2helpers$importStrategies.keySet().removeIf(side -> !targets.contains(side));
+        var context = new PatternProviderImportContext(grid.getStorageService(), grid.getEnergyService(),
+                actionSource, ae2helpers$results.keys(), config.resultsOnly());
+
+        // All neighbours share one operation budget. Rotate the first side so a busy machine cannot starve others.
+        var sides = Direction.values();
+        int firstSide = ae2helpers$nextImportSide;
+        ae2helpers$nextImportSide = (firstSide + 1) % sides.length;
+        for (int i = 0; i < sides.length && context.hasOperationsLeft(); i++) {
+            var side = sides[(firstSide + i) % sides.length];
+            if (!targets.contains(side)) continue;
+            var strategy = ae2helpers$importStrategies.computeIfAbsent(side, direction ->
+                    StackWorldBehaviors.createImportFacade(level, be.getBlockPos().relative(direction),
+                            config.overriddenDirection() == null ? direction.getOpposite() : config.overriddenDirection(),
+                            type -> true));
+            strategy.transfer(context);
         }
-        
-        var context = new PatternProviderImportContext(
-          this.mainNode.getGrid().getStorageService(),
-          this.mainNode.getGrid().getEnergyService(),
-          this.actionSource,
-          this.ae2helpers$expectedResults,
-          config.resultsOnly() // Pass the mode
-        );
-        
-        this.ae2helpers$importStrategy.transfer(context);
-        
-        var importedMap = context.getImportedItems();
-        if (!importedMap.isEmpty()) {
-            // always track results/expectations in case config is changed
-            if (!ae2helpers$expectedResults.isEmpty()) {
-                var changed = false;
-                var it = ae2helpers$expectedResults.entrySet().iterator();
-                
-                while (it.hasNext()) {
-                    var entry = it.next();
-                    var key = entry.getKey();
-                    var expected = entry.getValue();
-                    
-                    var actuallyImported = importedMap.getOrDefault(key, 0L);
-                    
-                    if (actuallyImported > 0) {
-                        var remaining = expected - actuallyImported;
-                        if (remaining <= 0) {
-                            it.remove();
-                        } else {
-                            entry.setValue(remaining);
-                        }
-                        changed = true;
-                    }
-                }
-                
-                if (changed) {
-                    this.saveChanges();
-                }
-            }
-            return true;
+
+        var imported = context.getImportedItems();
+        if (imported.isEmpty()) return false;
+        for (var entry : imported.entrySet()) {
+            // Use the same hook as AE2's return buffer: unlock result-gated crafts and update our tally once.
+            onStackReturnedToNetwork(new GenericStack(entry.getKey(), entry.getValue()));
         }
-        
-        return false;
+        saveChanges();
+        return true;
     }
-    
+
     @Unique
     private ImportCardConfig ae2helpers$getConfig() {
-        if (!ae2helpers$hasImportCard()) return ImportCardConfig.DEFAULT;
-        var stack = ae2helpers$upgradeSlots.getStackInSlot(0);
-        return stack.getOrDefault(ae2helpers.IMPORT_CARD_CONFIG.get(), ImportCardConfig.DEFAULT);
+        return ae2helpers$upgradeSlots.getStackInSlot(0).getOrDefault(ae2helpers.IMPORT_CARD_CONFIG.get(), ImportCardConfig.DEFAULT);
     }
-    
+
     @Unique
     private boolean ae2helpers$hasImportCard() {
-        return !ae2helpers$upgradeSlots.getStackInSlot(0).isEmpty()
-                 && ae2helpers$upgradeSlots.getStackInSlot(0).is(ae2helpers.RESULT_IMPORT_CARD.get());
+        return ae2helpers$upgradeSlots.getStackInSlot(0).is(ae2helpers.RESULT_IMPORT_CARD.get());
     }
-    
+
     @Inject(method = "clearContent", at = @At("HEAD"))
     private void ae2helpers$onClearContent(CallbackInfo ci) {
-        this.ae2helpers$importStrategy = null;
-        this.ae2helpers$currentSide = null;
-        this.ae2helpers$expectedResults.clear();
-        this.ae2helpers$upgradeSlots.clear();
+        ae2helpers$importStrategies.clear();
+        ae2helpers$results.clear();
+        ae2helpers$upgradeSlots.clear();
     }
-    
+
     @Inject(method = "addDrops", at = @At("TAIL"))
-    private void ae2extras$dropUpgrade(List<ItemStack> drops, CallbackInfo ci) {
-        for (var slot : this.ae2helpers$upgradeSlots) {
-            if (!slot.isEmpty()) {
-                drops.add(slot);
-            }
+    private void ae2helpers$dropUpgrade(List<ItemStack> drops, CallbackInfo ci) {
+        for (var stack : ae2helpers$upgradeSlots) {
+            if (!stack.isEmpty()) drops.add(stack);
         }
     }
-    
+
     @Inject(method = "writeToNBT", at = @At("TAIL"))
-    private void ae2helpers$writeToNBT(CompoundTag tag, HolderLookup.Provider registries, CallbackInfo ci) {
-        if (!ae2helpers$expectedResults.isEmpty()) {
-            var list = new ListTag();
-            ae2helpers$expectedResults.forEach((key, amount) -> {
-                list.add(GenericStack.writeTag(registries, new GenericStack(key, amount)));
-            });
-            tag.put("ae2helpers_expected_results", list);
-        }
-        ae2helpers$upgradeSlots.writeToNBT(tag, "ae2helperupgrades", registries);
+    private void ae2helpers$writeToNBT(ValueOutput output, CallbackInfo ci) {
+        ae2helpers$results.write(output);
+        ae2helpers$upgradeSlots.writeToNBT(output, "ae2helperupgrades");
     }
-    
+
     @Inject(method = "readFromNBT", at = @At("TAIL"))
-    private void ae2helpers$readFromNBT(CompoundTag tag, HolderLookup.Provider registries, CallbackInfo ci) {
-        ae2helpers$expectedResults.clear();
-        if (tag.contains("ae2helpers_expected_results")) {
-            var list = tag.getList("ae2helpers_expected_results", Tag.TAG_COMPOUND);
-            for (int i = 0; i < list.size(); i++) {
-                var stack = GenericStack.readTag(registries, list.getCompound(i));
-                if (stack != null) {
-                    ae2helpers$expectedResults.put(stack.what(), stack.amount());
-                }
-            }
-        }
-        ae2helpers$upgradeSlots.readFromNBT(tag, "ae2helperupgrades", registries);
+    private void ae2helpers$readFromNBT(ValueInput input, CallbackInfo ci) {
+        ae2helpers$upgradeSlots.readFromNBT(input, "ae2helperupgrades");
+        ae2helpers$results.read(input);
+        ae2helpers$importStrategies.clear();
     }
-    
+
     @Override
     public IUpgradeInventory ae2helpers$getUpgradeInventory() {
         return ae2helpers$upgradeSlots;

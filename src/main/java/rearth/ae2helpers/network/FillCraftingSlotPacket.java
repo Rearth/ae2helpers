@@ -9,19 +9,18 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.jetbrains.annotations.NotNull;
-import rearth.ae2helpers.ae2helpers;
 
-public record FillCraftingSlotPacket(int slotIndex, AEKey what) implements CustomPacketPayload {
+public record FillCraftingSlotPacket(int containerId, int slotIndex, AEKey what) implements CustomPacketPayload {
     
-    public static final Type<FillCraftingSlotPacket> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("ae2helpers", "fill_slot"));
-    
+    public static final Type<FillCraftingSlotPacket> TYPE = new Type<>(Identifier.fromNamespaceAndPath("ae2helpers", "fill_slot"));
     
     public static final StreamCodec<RegistryFriendlyByteBuf, FillCraftingSlotPacket> STREAM_CODEC = StreamCodec.composite(
+      ByteBufCodecs.VAR_INT, FillCraftingSlotPacket::containerId,
       ByteBufCodecs.VAR_INT, FillCraftingSlotPacket::slotIndex,
       AEKey.STREAM_CODEC, FillCraftingSlotPacket::what,
       FillCraftingSlotPacket::new
@@ -36,11 +35,15 @@ public record FillCraftingSlotPacket(int slotIndex, AEKey what) implements Custo
         context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player && player.containerMenu instanceof CraftingTermMenu menu && payload.what instanceof AEItemKey itemKey) {
                 
-                if (payload.slotIndex < 0 || payload.slotIndex >= menu.slots.size()) return;
+                var craftingSlots = menu.getSlots(SlotSemantics.CRAFTING_GRID);
+                if (menu.containerId != payload.containerId || !menu.stillValid(player) || payload.slotIndex < 0 || payload.slotIndex >= craftingSlots.size()) return;
+
+                var node = menu.getGridNode();
+                if (node == null || !node.isActive() || !menu.getLinkStatus().connected()) return;
                 
-                var targetSlot = menu.getSlots(SlotSemantics.CRAFTING_GRID).get(payload.slotIndex);
+                var targetSlot = craftingSlots.get(payload.slotIndex);
                 
-                if (targetSlot.hasItem()) return;
+                if (targetSlot.hasItem() || !targetSlot.mayPlace(itemKey.toStack())) return;
                 
                 // extract from network
                 long extracted = StorageHelper.poweredExtraction(
@@ -56,8 +59,6 @@ public record FillCraftingSlotPacket(int slotIndex, AEKey what) implements Custo
                     ItemStack stack = itemKey.toStack((int) extracted);
                     targetSlot.set(stack);
                     menu.broadcastChanges();
-                } else {
-                    ae2helpers.LOGGER.warn("Unable to extract from host for slot movement: " + payload.what);
                 }
             }
         });

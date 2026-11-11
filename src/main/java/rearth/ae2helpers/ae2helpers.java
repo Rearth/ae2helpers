@@ -20,6 +20,8 @@ import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.slf4j.Logger;
 import rearth.ae2helpers.network.FillCraftingSlotPacket;
+import rearth.ae2helpers.network.QueryPendingCraftsPacket;
+import rearth.ae2helpers.network.PendingCraftsStatusPacket;
 import rearth.ae2helpers.network.UpdateImportCardPacket;
 import rearth.ae2helpers.util.ImportCardConfig;
 import rearth.ae2helpers.util.ImportCardItem;
@@ -45,8 +47,7 @@ public class ae2helpers {
                                                         .build());
     
     public static final DeferredItem<Item> RESULT_IMPORT_CARD =
-      ITEMS.registerItem("result_import_card", ImportCardItem::new, new Item.Properties());
-    
+      ITEMS.registerItem("result_import_card", ImportCardItem::new);
     
     public ae2helpers(IEventBus modEventBus, ModContainer modContainer) {
         
@@ -65,7 +66,7 @@ public class ae2helpers {
     private void commonSetup(FMLCommonSetupEvent event) {
         
         // ideally we'd define the machine(s) as target here, but that then breaks with other mods that add upgrades to the machine
-        Upgrades.add(RESULT_IMPORT_CARD.get(), RESULT_IMPORT_CARD, 1, "gui.ae2helpers.import_card");
+        event.enqueueWork(() -> Upgrades.add(RESULT_IMPORT_CARD.get(), RESULT_IMPORT_CARD, 1, "gui.ae2helpers.import_card"));
         
     }
     
@@ -76,8 +77,11 @@ public class ae2helpers {
     }
     
     private void registerPayloads(final RegisterPayloadHandlersEvent event) {
-        final var registrar = event.registrar("1");
+        final var registrar = event.registrar("4");
         
+        registrar.playToServer(QueryPendingCraftsPacket.TYPE, QueryPendingCraftsPacket.STREAM_CODEC, QueryPendingCraftsPacket::handle);
+        registrar.playToClient(PendingCraftsStatusPacket.TYPE, PendingCraftsStatusPacket.STREAM_CODEC, PendingCraftsStatusPacket::handle);
+
         registrar.playToServer(
           FillCraftingSlotPacket.TYPE,
           FillCraftingSlotPacket.STREAM_CODEC,

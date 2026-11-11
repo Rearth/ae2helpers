@@ -18,14 +18,15 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class PatternProviderImportContext implements StackTransferContext {
     private final IStorageService internalStorage;
     private final IEnergySource energySource;
     private final IActionSource actionSource;
     
-    // tracks remaining crafting results
-    private final Map<AEKey, Long> expectedResults;
+    // Output types this provider is still waiting for or draining.
+    private final Set<AEKey> expectedResults;
     // what was actually moved yet
     private final Map<AEKey, Long> importedItems = new HashMap<>();
     
@@ -37,7 +38,7 @@ public class PatternProviderImportContext implements StackTransferContext {
     public PatternProviderImportContext(IStorageService internalStorage,
                                         IEnergySource energySource,
                                         IActionSource actionSource,
-                                        Map<AEKey, Long> expectedResults,
+                                        Set<AEKey> expectedResults,
                                         boolean resultsOnly) {
         this.internalStorage = internalStorage;
         this.energySource = energySource;
@@ -70,6 +71,7 @@ public class PatternProviderImportContext implements StackTransferContext {
                     // this is why a custom class is needed. Tracks the inserted amounts to keep track of what has been moved.
                     @Override
                     public long insert(AEKey what, long amount, Actionable mode, IActionSource source) {
+                        if (!isInFilter(what)) return 0;
                         var inserted = realInv.insert(what, amount, mode, source);
                         if (mode == Actionable.MODULATE && inserted > 0) {
                             importedItems.merge(what, inserted, Long::sum);
@@ -164,7 +166,7 @@ public class PatternProviderImportContext implements StackTransferContext {
     @Override
     public boolean isInFilter(AEKey key) {
         // if not resultsOnly, always true (e.g. everything allowed)
-        return !resultsOnly || expectedResults.containsKey(key);
+        return !resultsOnly || expectedResults.contains(key);
     }
     
     @Override
@@ -181,9 +183,9 @@ public class PatternProviderImportContext implements StackTransferContext {
         return false;
     }
     
-    // this is probably not really used
     @Override
     public boolean canInsert(AEItemKey what, long amount) {
+        if (!isInFilter(what)) return false;
         long inserted = internalStorage.getInventory().insert(
           what,
           amount,

@@ -20,20 +20,18 @@ An upgrade slot has been added to the **Pattern Provider** where this card can b
 # Configuration
 Right-click the card item to open its settings menu:
 
-*   **Import Crafting Results Only:**
-    *   **Enabled (Default):** The card is "Smart". It tracks exactly what ingredients were pushed and calculates the expected output. It will *only* import those specific result items. It ignores other items in the machine.
-    *   **Disabled:** The card acts like a standard Import Bus. It will aggressively pull *any* item from the target machine into the network.
-    *   Note that enabling this is much more performance-friendly, as it doesn't need to permanently try and import from the machine.
+*   **Import Only Crafting Results:**
+    *   **On (Default):** Pulls output types from crafts started by this provider and leaves unrelated items in the machine. It waits for the full output amount in each pattern, even if the CPU finishes earlier. Once that amount has arrived, it collects extra matching output until none has arrived for 10 seconds.
+    *   **Off:** Pulls everything the machine allows, including ingredients. Use this when you want the provider to act like an Import Bus.
+    *   Long-running processes stay pending while a crafting CPU is waiting for their output. Once no CPU needs that output type, it receives a fresh 90-second inactivity timeout. New pattern pushes or successful imports restart the timer. This stops abandoned imports after cancellation without timing out active CPU requests.
+    *   Pending counts survive world reloads, with a fresh timeout after loading; offline time does not count. Cancelling a CPU job does not immediately clear them, because a machine may still be processing its inputs. Remove and reinsert the card to reset pending imports immediately.
 
-*   **Sync with Crafting CPU:**
-    *   **Enabled (Default):** The card communicates with the Crafting CPU managing the job. If you cancel the crafting job at a terminal, the card stops waiting for the results. This prevents the provider from getting stuck "waiting" for items that will never arrive.
-
-*   **Import Side:**
-    *   **Auto:** Imports from the side of the machine that is touching the Pattern Provider.
-    *   **Specific Side (Up, Down, North, etc.):** Forces the provider to pull from a specific side of the adjacent machine. Useful for machines that only output to specific sides (e.g., Sided Furnaces).
+*   **Machine Output Face:**
+    *   **Auto:** Extracts from the machine face touching the Pattern Provider.
+    *   **Specific Face (Up, Down, North, etc.):** Extracts through that face of each targeted machine. For example, choose Down for a furnace's output slot. This setting does not change which neighbours the provider targets.
 
 
 The card uses an "exponential backoff" algorithm. If the machine is slow, the card checks less frequently to save server performance. It wakes up immediately when a new craft begins.
 
-### Limitations
-*   **Sided Providers Only:** This can can work with both the full and the "panel" / "part" version of the pattern provider. However, the full-block provider needs to point to a specific side (can be done with a wrench).
+### Provider directions
+*   **Provider blocks and parts:** Both are supported. A full block in the default "push to all sides" mode checks every target side; a directed provider checks its selected side. All sides share one transfer budget and are checked in a rotating order.
